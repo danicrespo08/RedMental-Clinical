@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Clinical\It;
 use App\Http\Controllers\Controller;
 use App\Models\Hhrr\Employee;
 use App\Models\It\Admission;
+use App\Models\It\Authorization;
+use App\Models\It\ServiceLog;
 use App\Models\It\Session;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class SessionController extends Controller
@@ -67,7 +70,10 @@ class SessionController extends Controller
 
         $data = $this->validated($request);
         $data['it_admission_id'] = $admission->id;
-        Session::create($data);
+        DB::transaction(function () use ($data) {
+            $session = Session::create($data);
+            $this->syncServiceLog($session);
+        });
 
         return redirect()->route('clinical.it.sessions.index')->with('status', 'Session recorded.');
     }
@@ -131,7 +137,10 @@ class SessionController extends Controller
 
         $data = $this->validated($request);
         $data['it_admission_id'] = $admission->id;
-        Session::create($data);
+        DB::transaction(function () use ($data) {
+            $session = Session::create($data);
+            $this->syncServiceLog($session);
+        });
         return redirect()->route('clinical.it.admissions.show', $admission)->with('status', 'Session recorded.');
     }
 
@@ -147,14 +156,67 @@ class SessionController extends Controller
 
     public function update(Request $request, Admission $admission, Session $session): RedirectResponse
     {
-        $session->update($this->validated($request));
+        DB::transaction(function () use ($request, $session) {
+            $session->update($this->validated($request));
+            $this->syncServiceLog($session->fresh());
+        });
         return redirect()->route('clinical.it.admissions.show', $admission)->with('status', 'Session updated.');
     }
 
     public function destroy(Admission $admission, Session $session): RedirectResponse
     {
-        $session->delete();
+        DB::transaction(function () use ($session) {
+            $log = ServiceLog::where('it_session_id', $session->id)->first();
+            $authId = $log?->it_authorization_id;
+            $log?->delete();
+            $session->delete();
+            if ($authId) Authorization::find($authId)?->recalcUnitsUsed();
+        });
         return redirect()->route('clinical.it.admissions.show', $admission)->with('status', 'Session deleted.');
+    }
+
+    /**
+     * Mirror a session into the billable service log so it flows into the superbill.
+     * One log per session (keyed by it_session_id); links to the admission's active
+     * authorization when present so used-unit counters stay in sync.
+     */
+    private function syncServiceLog(Session $session): void
+    {
+        $admission   = $session->admission;
+        $therapistId = $session->therapist_id ?? $admission->therapist_id;
+        if (! $therapistId) return; // service log requires a rendering provider
+
+        $auth = $admission->authorizations()
+            ->where('status', 'approved')->latest('id')->first()
+            ?? $admission->authorizations()->latest('id')->first();
+
+        $hasNote = filled($session->subjective) || filled($session->objective)
+                || filled($session->assessment) || filled($session->plan);
+
+        ServiceLog::updateOrCreate(
+            ['it_session_id' => $session->id],
+            [
+                'client_id'             => $admission->client_id,
+                'patient_id'            => $admission->patient_id,
+                'it_admission_id'       => $admission->id,
+                'service_date'          => $session->session_date,
+                'start_time'            => $session->start_time,
+                'end_time'              => $session->end_time,
+                'units'                 => $session->units,
+                'cpt_code'              => $session->cpt_code,
+                'modifier'              => $session->modifier,
+                'place_of_service'      => $session->place_of_service,
+                'diagnosis_code'        => $admission->diagnosis_code,
+                'diagnosis_description' => $admission->diagnosis_description,
+                'therapist_id'          => $therapistId,
+                'it_authorization_id'   => $auth?->id,
+                'auth_number'           => $auth?->auth_number,
+                'has_progress_note'     => $hasNote,
+                'created_by'            => auth()->id(),
+            ]
+        );
+
+        $auth?->recalcUnitsUsed();
     }
 
     private function validated(Request $request): array

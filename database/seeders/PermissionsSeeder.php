@@ -162,6 +162,13 @@ class PermissionsSeeder extends Seeder
             'clinical.tcm.edit'   => 'Edit TCM records',
             'clinical.tcm.delete' => 'Delete TCM records',
         ],
+        'Clinical — TCM Progress notes' => [
+            'clinical.tcm.progress_notes.view'   => 'View TCM progress notes',
+            'clinical.tcm.progress_notes.create' => 'Create TCM progress notes',
+            'clinical.tcm.progress_notes.edit'   => 'Edit TCM progress notes',
+            'clinical.tcm.progress_notes.delete' => 'Delete TCM progress notes',
+            'clinical.tcm.progress_notes.sign'   => 'Sign and addendum TCM progress notes',
+        ],
         'Clinical — TCM Service plans' => [
             'clinical.tcm.treatment_plans.view'   => 'View TCM service plans',
             'clinical.tcm.treatment_plans.create' => 'Create TCM service plans',

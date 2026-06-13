@@ -8,6 +8,8 @@ use App\Models\Hhrr\Employee;
 use App\Models\Psr\Admission;
 use App\Models\Psr\GroupSession;
 use App\Models\Psr\GroupSessionAttendee;
+use App\Models\Psr\Authorization;
+use App\Models\Psr\ServiceLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -219,7 +221,56 @@ class PsrGroupSessionController extends Controller
                 ? tap(GroupSessionAttendee::where('id', $a['id'])->where('psr_group_session_id', $session->id)->firstOrFail())->update($payload)
                 : $session->attendees()->create($payload);
             $kept[] = $row->id;
+            $this->syncServiceLog($session, $row, $admission);
         }
-        $session->attendees()->whereNotIn('id', $kept ?: [0])->delete();
+        // Drop attendees (and their billable logs) that are no longer on the roster.
+        $removed = $session->attendees()->whereNotIn('id', $kept ?: [0])->pluck('id');
+        if ($removed->isNotEmpty()) {
+            ServiceLog::whereIn('psr_group_session_attendee_id', $removed)->delete();
+            $session->attendees()->whereIn('id', $removed)->delete();
+        }
+    }
+
+    /**
+     * Mirror a group-session attendee into the billable service log so it flows into
+     * the superbill. One log per attendee (unique psr_group_session_attendee_id);
+     * links to the admission's active authorization to keep used-unit counters in sync.
+     */
+    private function syncServiceLog(GroupSession $session, GroupSessionAttendee $attendee, Admission $admission): void
+    {
+        $therapistId = $session->lead_therapist_id;
+        if (! $therapistId) return;
+
+        $auth = $admission->authorizations()
+            ->where('status', 'approved')->latest('id')->first()
+            ?? $admission->authorizations()->latest('id')->first();
+
+        ServiceLog::updateOrCreate(
+            ['psr_group_session_attendee_id' => $attendee->id],
+            [
+                'client_id'             => $session->client_id,
+                'clinic_id'             => $session->clinic_id,
+                'patient_id'            => $admission->patient_id,
+                'psr_admission_id'      => $admission->id,
+                'service_date'          => $session->session_date,
+                'start_time'            => $attendee->check_in_time ?? $session->start_time,
+                'end_time'              => $attendee->check_out_time ?? $session->end_time,
+                'units'                 => $attendee->units,
+                'service_code'          => $session->service_code,
+                'modifier'              => $session->modifier,
+                'place_of_service'      => $session->place_of_service,
+                'diagnosis_code'        => $admission->primary_dx_code,
+                'diagnosis_description' => $admission->primary_dx_description,
+                'therapist_id'          => $therapistId,
+                'source_type'           => 'group_session',
+                'psr_group_session_id'  => $session->id,
+                'psr_authorization_id'  => $auth?->id,
+                'auth_number'           => $auth?->auth_number,
+                'has_progress_note'     => false,
+                'created_by'            => auth()->id(),
+            ]
+        );
+
+        $auth?->recalcUnitsUsed();
     }
 }

@@ -29,6 +29,7 @@ use App\Http\Controllers\Clinical\Psr\PsrTreatmentPlanController;
 use App\Http\Controllers\Clinical\Tcm\AdmissionController as TcmAdmissionController;
 use App\Http\Controllers\Clinical\Tcm\AuthorizationController as TcmAuthorizationController;
 use App\Http\Controllers\Clinical\Tcm\ContactController as TcmContactController;
+use App\Http\Controllers\Clinical\Tcm\ProgressNoteController as TcmProgressNoteController;
 use App\Http\Controllers\Clinical\Tcm\DischargeController as TcmDischargeController;
 use App\Http\Controllers\Clinical\Tcm\ServiceLogController as TcmServiceLogController;
 use App\Http\Controllers\Clinical\Tcm\SuperbillController as TcmSuperbillController;
@@ -508,6 +509,29 @@ Route::middleware('auth')->group(function () {
             Route::middleware('permission:clinical.tcm.delete')->group(function () {
                 Route::delete('admissions/{admission}',                   [TcmAdmissionController::class, 'destroy'])->name('admissions.destroy');
                 Route::delete('admissions/{admission}/contacts/{contact}', [TcmContactController::class, 'destroy'])->name('contacts.destroy');
+            });
+
+            // TCM Progress notes
+            Route::middleware('permission:clinical.tcm.progress_notes.view')->group(function () {
+                Route::get('progress-notes', [TcmProgressNoteController::class, 'index'])->name('progress_notes.index');
+            });
+            Route::middleware('permission:clinical.tcm.progress_notes.create')->group(function () {
+                Route::get('progress-notes/create', [TcmProgressNoteController::class, 'create'])->name('progress_notes.create');
+                Route::post('progress-notes',       [TcmProgressNoteController::class, 'store'])->name('progress_notes.store');
+            });
+            Route::middleware('permission:clinical.tcm.progress_notes.view')->group(function () {
+                Route::get('progress-notes/{progressNote}', [TcmProgressNoteController::class, 'show'])->whereNumber('progressNote')->name('progress_notes.show');
+            });
+            Route::middleware('permission:clinical.tcm.progress_notes.edit')->group(function () {
+                Route::get('progress-notes/{progressNote}/edit', [TcmProgressNoteController::class, 'edit'])->name('progress_notes.edit');
+                Route::put('progress-notes/{progressNote}',      [TcmProgressNoteController::class, 'update'])->name('progress_notes.update');
+            });
+            Route::middleware('permission:clinical.tcm.progress_notes.sign')->group(function () {
+                Route::post('progress-notes/{progressNote}/sign',     [TcmProgressNoteController::class, 'sign'])->name('progress_notes.sign');
+                Route::post('progress-notes/{progressNote}/addendum', [TcmProgressNoteController::class, 'addendum'])->name('progress_notes.addendum');
+            });
+            Route::middleware('permission:clinical.tcm.progress_notes.delete')->group(function () {
+                Route::delete('progress-notes/{progressNote}', [TcmProgressNoteController::class, 'destroy'])->name('progress_notes.destroy');
             });
 
             // TCM Service plans

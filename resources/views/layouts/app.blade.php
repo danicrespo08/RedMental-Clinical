@@ -93,6 +93,7 @@
                             'admissions'      => ['label' => 'Admissions',      'route' => 'clinical.tcm.admissions.index'],
                             'contacts'        => ['label' => 'Contacts',        'route' => 'clinical.tcm.contacts.index'],
                             'treatment_plans' => ['label' => 'Service plans',   'route' => 'clinical.tcm.treatment_plans.index'],
+                            'progress_notes'  => ['label' => 'Progress notes',  'route' => 'clinical.tcm.progress_notes.index'],
                             'authorizations'  => ['label' => 'Authorizations',  'route' => 'clinical.tcm.authorizations.index'],
                             'service_log'     => ['label' => 'Service log',     'route' => 'clinical.tcm.service_log.index'],
                             'superbill'       => ['label' => 'Superbill',       'route' => 'clinical.tcm.superbill.index'],

@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Clinical\Tcm;
 use App\Http\Controllers\Controller;
 use App\Models\Hhrr\Employee;
 use App\Models\Tcm\Admission;
+use App\Models\Tcm\Authorization;
 use App\Models\Tcm\Contact;
+use App\Models\Tcm\ServiceLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -75,7 +78,10 @@ class ContactController extends Controller
 
         $data = $this->validated($request);
         $data['tcm_admission_id'] = $admission->id;
-        Contact::create($data);
+        DB::transaction(function () use ($data) {
+            $contact = Contact::create($data);
+            $this->syncServiceLog($contact);
+        });
 
         return redirect()->route('clinical.tcm.contacts.index')->with('status', 'Contact recorded.');
     }
@@ -143,7 +149,10 @@ class ContactController extends Controller
 
         $data = $this->validated($request);
         $data['tcm_admission_id'] = $admission->id;
-        Contact::create($data);
+        DB::transaction(function () use ($data) {
+            $contact = Contact::create($data);
+            $this->syncServiceLog($contact);
+        });
         return redirect()->route('clinical.tcm.admissions.show', $admission)->with('status', 'Contact recorded.');
     }
 
@@ -160,14 +169,61 @@ class ContactController extends Controller
 
     public function update(Request $request, Admission $admission, Contact $contact): RedirectResponse
     {
-        $contact->update($this->validated($request));
+        DB::transaction(function () use ($request, $contact) {
+            $contact->update($this->validated($request));
+            $this->syncServiceLog($contact->fresh());
+        });
         return redirect()->route('clinical.tcm.admissions.show', $admission)->with('status', 'Contact updated.');
     }
 
     public function destroy(Admission $admission, Contact $contact): RedirectResponse
     {
-        $contact->delete();
+        DB::transaction(function () use ($contact) {
+            $log = ServiceLog::where('tcm_contact_id', $contact->id)->first();
+            $authId = $log?->tcm_authorization_id;
+            $log?->delete();
+            $contact->delete();
+            if ($authId) Authorization::find($authId)?->recalcUnitsUsed();
+        });
         return redirect()->route('clinical.tcm.admissions.show', $admission)->with('status', 'Contact deleted.');
+    }
+
+    /**
+     * Mirror a care contact into the billable service log so it flows into the superbill.
+     * One log per contact (keyed by tcm_contact_id); links to the admission's active
+     * authorization when present so used-unit counters stay in sync.
+     */
+    private function syncServiceLog(Contact $contact): void
+    {
+        $admission = $contact->admission;
+        $managerId = $contact->case_manager_id ?? $admission->case_manager_id;
+        if (! $managerId) return; // service log requires a rendering case manager
+
+        $auth = $admission->authorizations()
+            ->where('status', 'approved')->latest('id')->first()
+            ?? $admission->authorizations()->latest('id')->first();
+
+        ServiceLog::updateOrCreate(
+            ['tcm_contact_id' => $contact->id],
+            [
+                'client_id'             => $admission->client_id,
+                'patient_id'            => $admission->patient_id,
+                'tcm_admission_id'      => $admission->id,
+                'service_date'          => optional($contact->contact_at)->toDateString(),
+                'units'                 => $contact->units,
+                'cpt_code'              => $contact->cpt_code,
+                'place_of_service'      => $contact->place_of_service,
+                'diagnosis_code'        => $admission->diagnosis_code,
+                'diagnosis_description' => $admission->diagnosis_description,
+                'case_manager_id'       => $managerId,
+                'tcm_authorization_id'  => $auth?->id,
+                'auth_number'           => $auth?->auth_number,
+                'has_contact_note'      => filled($contact->summary),
+                'created_by'            => auth()->id(),
+            ]
+        );
+
+        $auth?->recalcUnitsUsed();
     }
 
     private function validated(Request $request): array

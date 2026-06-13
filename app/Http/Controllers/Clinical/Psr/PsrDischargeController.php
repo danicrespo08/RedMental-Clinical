@@ -28,7 +28,15 @@ class PsrDischargeController extends Controller
             ->orderByDesc('discharge_date')
             ->paginate(20);
 
-        return view('clinical.psr.discharges.index', compact('discharges'));
+        // Discharged admissions that still have no discharge summary on file.
+        $pending = Admission::query()
+            ->where('status', 'discharged')
+            ->whereDoesntHave('dischargeSummary')
+            ->with('patient')
+            ->orderByDesc('discharge_date')
+            ->get();
+
+        return view('clinical.psr.discharges.index', compact('discharges', 'pending'));
     }
 
     public function create(Request $request): View
@@ -90,6 +98,11 @@ class PsrDischargeController extends Controller
         $data = $this->validated($request);
         $data['created_by'] = auth()->id();
         $discharge = DischargeSummary::create($data);
+        // Closing the chart: move the admission to discharged.
+        $discharge->admission?->update([
+            'status'         => 'discharged',
+            'discharge_date' => $discharge->discharge_date,
+        ]);
 
         return redirect()
             ->route('clinical.psr.discharges.show', $discharge)
