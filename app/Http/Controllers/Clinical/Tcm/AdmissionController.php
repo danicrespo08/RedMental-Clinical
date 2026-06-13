@@ -106,7 +106,7 @@ class AdmissionController extends Controller
 
     public function show(Admission $admission): View
     {
-        $admission->load(['patient', 'caseManager', 'contacts' => fn ($q) => $q->orderByDesc('contact_at')]);
+        $admission->load(['patient', 'caseManager', 'contacts' => fn ($q) => $q->orderByDesc('contact_at'), 'treatmentPlans.goals', 'dischargeSummary']);
         return view('clinical.tcm.admissions.show', compact('admission'));
     }
 

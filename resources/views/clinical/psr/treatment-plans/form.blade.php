@@ -234,12 +234,12 @@
                   if (this.aiBusy) return;
                   this.aiBusy = true;
                   try {
-                      const url = this.$el.dataset.aiUrl;
+                      const url = this.$root.dataset.aiUrl;
                       const res = await fetch(url, {
                           method: 'POST',
                           headers: {
                               'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content
-                                  || this.$el.querySelector('input[name=_token]').value,
+                                  || this.$root.querySelector('input[name=_token]').value,
                               'Accept': 'application/json',
                           },
                       });

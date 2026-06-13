@@ -51,7 +51,7 @@ class DashboardController extends Controller
     /**
      * PSR (Psychosocial Rehabilitation) module dashboard.
      *
-     * Mirrors albamed/DashboardController::psrDashboard. Aggregates admission,
+     * Aggregates admission,
      * authorization, billing, progress-note and group-session counters for
      * the authenticated user's tenant, plus a compliance snapshot (admissions
      * missing bio assessment / treatment plan / FARS / active authorization)

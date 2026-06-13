@@ -177,33 +177,135 @@ PROMPT;
     private function mockGoalSuggestion(Admission $admission): array
     {
         $dx = strtolower($admission->primary_dx_description ?? 'mental health condition');
-        return [
-            'goals' => [
-                [
-                    'description' => "Patient will demonstrate improved management of {$dx} symptoms and develop functional coping skills.",
-                    'objectives'  => [
-                        ['description' => 'Patient will identify three triggers and verbalize a coping strategy for each within 30 days.'],
-                        ['description' => 'Patient will attend 80% of scheduled PSR group sessions over a 60-day period.'],
-                        ['description' => 'Patient will complete a daily mood log for 4 of 5 weekdays for 2 consecutive weeks.'],
-                    ],
-                ],
-                [
-                    'description' => 'Patient will improve interpersonal and community-integration skills.',
-                    'objectives'  => [
-                        ['description' => 'Patient will initiate two reciprocal social interactions per group session for 4 consecutive weeks.'],
-                        ['description' => 'Patient will independently complete one community-based ADL task (banking, shopping) per week for 30 days.'],
-                    ],
-                ],
-                [
-                    'description' => 'Patient will adhere to medication and treatment regimen as prescribed.',
-                    'objectives'  => [
-                        ['description' => 'Patient will report medication adherence ≥90% verified by pill count for 60 days.'],
-                        ['description' => 'Patient will attend 100% of scheduled medication-management appointments for 90 days.'],
-                    ],
+
+        // Generic PSR goal bank — measurable, time-limited, FL Medicaid wording.
+        $pool = [
+            [
+                'description' => "Patient will demonstrate improved management of {$dx} symptoms and develop functional coping skills.",
+                'objectives'  => [
+                    ['description' => 'Patient will identify three personal triggers and verbalize a coping strategy for each within 30 days.'],
+                    ['description' => 'Patient will attend 80% of scheduled PSR group sessions over a 60-day period.'],
+                    ['description' => 'Patient will complete a daily mood log for 4 of 5 weekdays for 2 consecutive weeks.'],
                 ],
             ],
-            'long_term_goal' => "Patient will achieve sustained remission of {$dx} symptoms and resume baseline social and occupational functioning.",
-            'discharge_criteria' => 'Symptom rating below clinical threshold for 60 consecutive days, consistent attendance ≥80%, demonstrated independent use of three coping skills, and stable medication adherence.',
+            [
+                'description' => 'Patient will improve interpersonal and community-integration skills.',
+                'objectives'  => [
+                    ['description' => 'Patient will initiate two reciprocal social interactions per group session for 4 consecutive weeks.'],
+                    ['description' => 'Patient will independently complete one community-based ADL task (banking, shopping) per week for 30 days.'],
+                    ['description' => 'Patient will participate in one structured community activity per month for 90 days.'],
+                ],
+            ],
+            [
+                'description' => 'Patient will adhere to medication and treatment regimen as prescribed.',
+                'objectives'  => [
+                    ['description' => 'Patient will report medication adherence ≥90% verified by pill count for 60 days.'],
+                    ['description' => 'Patient will attend 100% of scheduled medication-management appointments for 90 days.'],
+                    ['description' => 'Patient will verbalize the purpose and dosage of each prescribed medication within 30 days.'],
+                ],
+            ],
+            [
+                'description' => 'Patient will establish and maintain a structured daily routine supporting independent living.',
+                'objectives'  => [
+                    ['description' => 'Patient will follow a written daily schedule including hygiene, meals and sleep 5 of 7 days per week for 30 days.'],
+                    ['description' => 'Patient will complete assigned independent-living tasks (laundry, meal prep) with no more than one prompt per week for 60 days.'],
+                    ['description' => 'Patient will report a consistent sleep window of 7–9 hours for 3 consecutive weeks.'],
+                ],
+            ],
+            [
+                'description' => 'Patient will strengthen problem-solving and emotional-regulation skills to reduce crisis episodes.',
+                'objectives'  => [
+                    ['description' => 'Patient will apply a learned de-escalation technique in role-play with 80% accuracy across 4 sessions.'],
+                    ['description' => 'Patient will report zero crisis-line or ER contacts related to symptom escalation for 60 consecutive days.'],
+                    ['description' => 'Patient will complete a written problem-solving worksheet for one real-life stressor per week for 6 weeks.'],
+                ],
+            ],
+            [
+                'description' => 'Patient will identify and engage personal support systems to sustain recovery.',
+                'objectives'  => [
+                    ['description' => 'Patient will name three supportive contacts and their roles in the recovery plan within 30 days.'],
+                    ['description' => 'Patient will schedule and keep one weekly contact with a family member or peer support for 8 consecutive weeks.'],
+                    ['description' => 'Patient will attend one community support group meeting per month for 90 days.'],
+                ],
+            ],
+        ];
+
+        // Diagnosis-specific goals appended to the pool when keywords match.
+        $specific = [
+            'depress' => [
+                'description' => 'Patient will reduce depressive symptoms and increase engagement in pleasurable and goal-directed activities.',
+                'objectives'  => [
+                    ['description' => 'Patient will schedule and complete three behavioral-activation activities per week for 4 consecutive weeks.'],
+                    ['description' => 'Patient will report a PHQ-9 score reduction of at least 5 points within 90 days.'],
+                    ['description' => 'Patient will identify and challenge two negative automatic thoughts per group session for 30 days.'],
+                ],
+            ],
+            'anxiety|panic|phobi' => [
+                'description' => 'Patient will reduce anxiety symptoms and demonstrate independent use of relaxation techniques.',
+                'objectives'  => [
+                    ['description' => 'Patient will practice diaphragmatic breathing or progressive muscle relaxation daily, logged 6 of 7 days for 4 weeks.'],
+                    ['description' => 'Patient will report a GAD-7 score reduction of at least 4 points within 90 days.'],
+                    ['description' => 'Patient will complete one graded-exposure exercise per week with staff support for 6 weeks.'],
+                ],
+            ],
+            'bipolar|manic' => [
+                'description' => 'Patient will recognize early warning signs of mood episodes and apply the relapse-prevention plan.',
+                'objectives'  => [
+                    ['description' => 'Patient will complete a daily mood and sleep chart for 8 consecutive weeks.'],
+                    ['description' => 'Patient will list five personal early-warning signs and matching coping responses within 30 days.'],
+                    ['description' => 'Patient will review the relapse-prevention plan with staff twice monthly for 90 days.'],
+                ],
+            ],
+            'schizo|psychot' => [
+                'description' => 'Patient will improve reality-testing skills and manage residual psychotic symptoms in community settings.',
+                'objectives'  => [
+                    ['description' => 'Patient will use a learned grounding/reality-check strategy when symptomatic, reported in 4 of 5 instances for 60 days.'],
+                    ['description' => 'Patient will attend all scheduled psychiatric appointments for 90 consecutive days.'],
+                    ['description' => 'Patient will participate in symptom-education group weekly for 8 consecutive weeks.'],
+                ],
+            ],
+            'trauma|ptsd|stress' => [
+                'description' => 'Patient will develop grounding and self-soothing skills to manage trauma-related symptoms.',
+                'objectives'  => [
+                    ['description' => 'Patient will demonstrate two grounding techniques during in-session practice with 80% independence for 4 weeks.'],
+                    ['description' => 'Patient will report nightmare or flashback frequency weekly and identify one effective response for 60 days.'],
+                    ['description' => 'Patient will build a written safety/self-soothing plan with staff within 30 days.'],
+                ],
+            ],
+            'substance|alcohol|opioid|cannabis' => [
+                'description' => 'Patient will maintain abstinence and strengthen relapse-prevention skills.',
+                'objectives'  => [
+                    ['description' => 'Patient will identify five personal relapse triggers and a refusal strategy for each within 30 days.'],
+                    ['description' => 'Patient will attend one recovery-support meeting per week for 12 consecutive weeks.'],
+                    ['description' => 'Patient will provide negative screens at all scheduled checks for 90 days.'],
+                ],
+            ],
+        ];
+
+        foreach ($specific as $pattern => $goal) {
+            if (preg_match('/' . $pattern . '/', $dx)) {
+                array_unshift($pool, $goal);
+            }
+        }
+
+        shuffle($pool);
+
+        $longTermGoals = [
+            "Patient will achieve sustained remission of {$dx} symptoms and resume baseline social and occupational functioning.",
+            "Patient will manage {$dx} symptoms independently, maintain stable community living, and require only routine outpatient follow-up.",
+            "Patient will demonstrate consistent use of recovery skills, sustain meaningful daily activity, and reduce the functional impact of {$dx}.",
+        ];
+
+        $dischargeCriteria = [
+            'Symptom rating below clinical threshold for 60 consecutive days, consistent attendance ≥80%, demonstrated independent use of three coping skills, and stable medication adherence.',
+            'Patient maintains stable functioning for 90 days, completes treatment-plan objectives at ≥75%, demonstrates an actionable relapse-prevention plan, and has an established outpatient provider.',
+            'No crisis episodes for 60 days, independent completion of daily-living routines, active engagement of a personal support system, and clinical team consensus on step-down readiness.',
+        ];
+
+        return [
+            'goals'              => array_slice($pool, 0, 3),
+            'long_term_goal'     => $longTermGoals[array_rand($longTermGoals)],
+            'discharge_criteria' => $dischargeCriteria[array_rand($dischargeCriteria)],
         ];
     }
 

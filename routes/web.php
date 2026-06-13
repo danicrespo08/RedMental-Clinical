@@ -19,6 +19,7 @@ use App\Http\Controllers\Clinical\It\TreatmentPlanController as ItTreatmentPlanC
 use App\Http\Controllers\Clinical\Psr\PsrAdmissionController;
 use App\Http\Controllers\Clinical\Psr\PsrAssessmentController;
 use App\Http\Controllers\Clinical\Psr\PsrAuthorizationController;
+use App\Http\Controllers\Clinical\Psr\PsrIntakeController;
 use App\Http\Controllers\Clinical\Psr\PsrDischargeController;
 use App\Http\Controllers\Clinical\Psr\PsrGroupSessionController;
 use App\Http\Controllers\Clinical\Psr\PsrProgressNoteController;
@@ -139,9 +140,6 @@ Route::middleware('auth')->group(function () {
         });
 
         // Patients — same pattern: /create must come before /{patient}.
-        Route::middleware('permission:hhrr.patients.view')->group(function () {
-            Route::get('patients', [PatientController::class, 'index'])->name('patients.index');
-        });
         Route::middleware('permission:hhrr.patients.create')->group(function () {
             Route::get('patients/create', [PatientController::class, 'create'])->name('patients.create');
             Route::post('patients',       [PatientController::class, 'store'])->name('patients.store');
@@ -188,6 +186,16 @@ Route::middleware('auth')->group(function () {
                 Route::delete('admissions/{admission}', [PsrAdmissionController::class, 'destroy'])->name('admissions.destroy');
             });
 
+            // Intake (1:1 with the admission) ────────────────────
+            Route::middleware('permission:clinical.psr.admissions.edit')->group(function () {
+                Route::get('intakes/create',        [PsrIntakeController::class, 'create'])->name('intakes.create');
+                Route::post('intakes',              [PsrIntakeController::class, 'store'])->name('intakes.store');
+                Route::get('intakes/{intake}/edit', [PsrIntakeController::class, 'edit'])->name('intakes.edit');
+                Route::put('intakes/{intake}',      [PsrIntakeController::class, 'update'])->name('intakes.update');
+                Route::post('intakes/{intake}/sign', [PsrIntakeController::class, 'sign'])->name('intakes.sign');
+                Route::delete('intakes/{intake}',   [PsrIntakeController::class, 'destroy'])->name('intakes.destroy');
+            });
+
             // Group sessions ─────────────────────────────────────
             Route::middleware('permission:clinical.psr.group_sessions.view')->group(function () {
                 Route::get('group-sessions', [PsrGroupSessionController::class, 'index'])->name('group_sessions.index');
@@ -228,6 +236,7 @@ Route::middleware('auth')->group(function () {
             });
             Route::middleware('permission:clinical.psr.assessments.sign')->group(function () {
                 Route::post('assessments/{assessment}/sign', [PsrAssessmentController::class, 'sign'])->name('assessments.sign');
+                Route::post('fars/{fars}/sign', [PsrAssessmentController::class, 'farsSign'])->name('assessments.fars.sign');
             });
             Route::middleware('permission:clinical.psr.assessments.delete')->group(function () {
                 Route::delete('assessments/{assessment}', [PsrAssessmentController::class, 'destroy'])->name('assessments.destroy');
@@ -365,6 +374,9 @@ Route::middleware('auth')->group(function () {
             Route::middleware('permission:clinical.it.create')->group(function () {
                 Route::get('admissions/create',                       [ItAdmissionController::class, 'create'])->name('admissions.create');
                 Route::post('admissions',                             [ItAdmissionController::class, 'store'])->name('admissions.store');
+                // Standalone session create (patient picker) — reachable from the cross-patient list.
+                Route::get('sessions/create',                         [ItSessionController::class, 'createAny'])->name('sessions.create_any');
+                Route::post('sessions',                               [ItSessionController::class, 'storeAny'])->name('sessions.store_any');
                 Route::get('admissions/{admission}/sessions/create',  [ItSessionController::class, 'create'])->name('sessions.create');
                 Route::post('admissions/{admission}/sessions',        [ItSessionController::class, 'store'])->name('sessions.store');
             });
@@ -386,7 +398,7 @@ Route::middleware('auth')->group(function () {
             // IT Treatment plans
             Route::middleware('permission:clinical.it.treatment_plans.view')->group(function () {
                 Route::get('treatment-plans', [ItTreatmentPlanController::class, 'index'])->name('treatment_plans.index');
-                Route::get('treatment-plans/{treatmentPlan}', [ItTreatmentPlanController::class, 'show'])->name('treatment_plans.show');
+                Route::get('treatment-plans/{treatmentPlan}', [ItTreatmentPlanController::class, 'show'])->whereNumber('treatmentPlan')->name('treatment_plans.show');
             });
             Route::middleware('permission:clinical.it.treatment_plans.create')->group(function () {
                 Route::get('treatment-plans/create', [ItTreatmentPlanController::class, 'create'])->name('treatment_plans.create');
@@ -407,7 +419,7 @@ Route::middleware('auth')->group(function () {
             // IT Authorizations
             Route::middleware('permission:clinical.it.authorizations.view')->group(function () {
                 Route::get('authorizations', [ItAuthorizationController::class, 'index'])->name('authorizations.index');
-                Route::get('authorizations/{authorization}', [ItAuthorizationController::class, 'show'])->name('authorizations.show');
+                Route::get('authorizations/{authorization}', [ItAuthorizationController::class, 'show'])->whereNumber('authorization')->name('authorizations.show');
             });
             Route::middleware('permission:clinical.it.authorizations.create')->group(function () {
                 Route::get('authorizations/create', [ItAuthorizationController::class, 'create'])->name('authorizations.create');
@@ -424,7 +436,7 @@ Route::middleware('auth')->group(function () {
             // IT Service log
             Route::middleware('permission:clinical.it.service_log.view')->group(function () {
                 Route::get('service-log', [ItServiceLogController::class, 'index'])->name('service_log.index');
-                Route::get('service-log/{serviceLog}', [ItServiceLogController::class, 'show'])->name('service_log.show');
+                Route::get('service-log/{serviceLog}', [ItServiceLogController::class, 'show'])->whereNumber('serviceLog')->name('service_log.show');
             });
             Route::middleware('permission:clinical.it.service_log.create')->group(function () {
                 Route::get('service-log/create', [ItServiceLogController::class, 'create'])->name('service_log.create');
@@ -450,7 +462,7 @@ Route::middleware('auth')->group(function () {
             // IT Discharges
             Route::middleware('permission:clinical.it.discharges.view')->group(function () {
                 Route::get('discharges', [ItDischargeController::class, 'index'])->name('discharges.index');
-                Route::get('discharges/{discharge}', [ItDischargeController::class, 'show'])->name('discharges.show');
+                Route::get('discharges/{discharge}', [ItDischargeController::class, 'show'])->whereNumber('discharge')->name('discharges.show');
             });
             Route::middleware('permission:clinical.it.discharges.create')->group(function () {
                 Route::get('discharges/create', [ItDischargeController::class, 'create'])->name('discharges.create');
@@ -477,6 +489,9 @@ Route::middleware('auth')->group(function () {
             Route::middleware('permission:clinical.tcm.create')->group(function () {
                 Route::get('admissions/create',                        [TcmAdmissionController::class, 'create'])->name('admissions.create');
                 Route::post('admissions',                              [TcmAdmissionController::class, 'store'])->name('admissions.store');
+                // Standalone contact create (patient picker) — reachable from the cross-patient list.
+                Route::get('contacts/create',                          [TcmContactController::class, 'createAny'])->name('contacts.create_any');
+                Route::post('contacts',                                [TcmContactController::class, 'storeAny'])->name('contacts.store_any');
                 Route::get('admissions/{admission}/contacts/create',   [TcmContactController::class, 'create'])->name('contacts.create');
                 Route::post('admissions/{admission}/contacts',         [TcmContactController::class, 'store'])->name('contacts.store');
             });
@@ -498,7 +513,7 @@ Route::middleware('auth')->group(function () {
             // TCM Service plans
             Route::middleware('permission:clinical.tcm.treatment_plans.view')->group(function () {
                 Route::get('treatment-plans', [TcmTreatmentPlanController::class, 'index'])->name('treatment_plans.index');
-                Route::get('treatment-plans/{treatmentPlan}', [TcmTreatmentPlanController::class, 'show'])->name('treatment_plans.show');
+                Route::get('treatment-plans/{treatmentPlan}', [TcmTreatmentPlanController::class, 'show'])->whereNumber('treatmentPlan')->name('treatment_plans.show');
             });
             Route::middleware('permission:clinical.tcm.treatment_plans.create')->group(function () {
                 Route::get('treatment-plans/create', [TcmTreatmentPlanController::class, 'create'])->name('treatment_plans.create');
@@ -519,7 +534,7 @@ Route::middleware('auth')->group(function () {
             // TCM Authorizations
             Route::middleware('permission:clinical.tcm.authorizations.view')->group(function () {
                 Route::get('authorizations', [TcmAuthorizationController::class, 'index'])->name('authorizations.index');
-                Route::get('authorizations/{authorization}', [TcmAuthorizationController::class, 'show'])->name('authorizations.show');
+                Route::get('authorizations/{authorization}', [TcmAuthorizationController::class, 'show'])->whereNumber('authorization')->name('authorizations.show');
             });
             Route::middleware('permission:clinical.tcm.authorizations.create')->group(function () {
                 Route::get('authorizations/create', [TcmAuthorizationController::class, 'create'])->name('authorizations.create');
@@ -536,7 +551,7 @@ Route::middleware('auth')->group(function () {
             // TCM Service log
             Route::middleware('permission:clinical.tcm.service_log.view')->group(function () {
                 Route::get('service-log', [TcmServiceLogController::class, 'index'])->name('service_log.index');
-                Route::get('service-log/{serviceLog}', [TcmServiceLogController::class, 'show'])->name('service_log.show');
+                Route::get('service-log/{serviceLog}', [TcmServiceLogController::class, 'show'])->whereNumber('serviceLog')->name('service_log.show');
             });
             Route::middleware('permission:clinical.tcm.service_log.create')->group(function () {
                 Route::get('service-log/create', [TcmServiceLogController::class, 'create'])->name('service_log.create');
@@ -562,7 +577,7 @@ Route::middleware('auth')->group(function () {
             // TCM Discharges
             Route::middleware('permission:clinical.tcm.discharges.view')->group(function () {
                 Route::get('discharges', [TcmDischargeController::class, 'index'])->name('discharges.index');
-                Route::get('discharges/{discharge}', [TcmDischargeController::class, 'show'])->name('discharges.show');
+                Route::get('discharges/{discharge}', [TcmDischargeController::class, 'show'])->whereNumber('discharge')->name('discharges.show');
             });
             Route::middleware('permission:clinical.tcm.discharges.create')->group(function () {
                 Route::get('discharges/create', [TcmDischargeController::class, 'create'])->name('discharges.create');

@@ -1,5 +1,4 @@
-{{-- Reusable styles for PSR / IT / TCM service dashboards.
-     Mirrors albamed/dashboards/partials/service-styles.blade.php. --}}
+{{-- Reusable styles for PSR / IT / TCM service dashboards. --}}
 <style>
     .svc-stat {
         background: white; border-radius: 1rem; padding: 1.25rem 1.5rem;

@@ -15,7 +15,7 @@ use Illuminate\View\View;
 /**
  * PSR (Psychosocial Rehabilitation) — Admissions controller.
  *
- * Mirrors albamed/PsrAdmissionController. Handles the master record that
+ * Handles the master record that
  * links a Patient to the PSR program at a specific Clinic, plus quick
  * status transitions (admit, hold, discharge).
  *

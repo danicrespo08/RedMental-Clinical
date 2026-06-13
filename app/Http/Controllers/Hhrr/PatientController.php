@@ -15,41 +15,6 @@ use Illuminate\View\View;
 
 class PatientController extends Controller
 {
-    public function index(Request $request): View
-    {
-        $q = trim((string) $request->query('q', ''));
-        $status = $request->query('status');
-        $clinicId = $request->query('clinic_id');
-        $providerId = $request->query('provider_id');
-
-        $patients = Patient::query()
-            ->when($q !== '', fn ($qb) => $qb->where(function ($w) use ($q) {
-                $w->where('first_name', 'like', "%{$q}%")
-                  ->orWhere('last_name', 'like', "%{$q}%")
-                  ->orWhere('mrn', 'like', "%{$q}%")
-                  ->orWhere('email', 'like', "%{$q}%")
-                  ->orWhere('phone', 'like', "%{$q}%");
-            }))
-            ->when($status === 'active',   fn ($qb) => $qb->where('active', true))
-            ->when($status === 'inactive', fn ($qb) => $qb->where('active', false))
-            ->when($clinicId, fn ($qb) => $qb->whereHas('clinics', fn ($c) => $c->where('clinics.id', $clinicId)))
-            ->when($providerId, fn ($qb) => $qb->where('assigned_provider_id', $providerId))
-            ->with(['insurances.payer', 'assignedProvider', 'clinics'])
-            ->orderBy('last_name')->orderBy('first_name')
-            ->paginate(20)
-            ->withQueryString();
-
-        return view('hhrr.patients.index', [
-            'patients'   => $patients,
-            'q'          => $q,
-            'status'     => $status,
-            'clinics'    => Clinic::where('active', true)->orderBy('name')->get(),
-            'providers'  => Employee::where('active', true)->where('is_provider', true)->orderBy('last_name')->get(),
-            'clinicId'   => $clinicId,
-            'providerId' => $providerId,
-        ]);
-    }
-
     public function create(): View
     {
         return view('hhrr.patients.form', [
@@ -79,7 +44,7 @@ class PatientController extends Controller
     public function show(Patient $patient): View
     {
         return view('hhrr.patients.show', [
-            'patient' => $patient->load(['insurances.payer', 'contracts', 'assignedProvider', 'clinics']),
+            'patient' => $patient->load(['insurances.payer', 'assignedProvider', 'clinics']),
         ]);
     }
 
@@ -112,7 +77,7 @@ class PatientController extends Controller
     public function destroy(Patient $patient): RedirectResponse
     {
         $patient->delete();
-        return redirect()->route('hhrr.patients.index')->with('status', 'Patient deleted.');
+        return redirect()->route('clinical.psr.admissions.index')->with('status', 'Patient deleted.');
     }
 
     private function validated(Request $request, ?int $ignoreId = null): array

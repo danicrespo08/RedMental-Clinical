@@ -8,6 +8,7 @@ use App\Models\It\Admission;
 use App\Models\It\Session;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class SessionController extends Controller
@@ -39,6 +40,62 @@ class SessionController extends Controller
         return view('clinical.it.sessions.index', compact('sessions', 'q', 'month', 'cpt', 'cptOptions'));
     }
 
+    /** Standalone "new session" reachable from the cross-patient sessions list. */
+    public function createAny(): View
+    {
+        $admissions = $this->admissionOptions();
+
+        return view('clinical.it.sessions.form', [
+            'admission'        => null,
+            'admissions'       => $admissions,
+            'goalsByAdmission' => $admissions->mapWithKeys(fn ($a) => [$a->id => $this->goalsArray($a)]),
+            'session'    => new Session([
+                'session_date'     => now()->toDateString(),
+                'cpt_code'         => '90834',
+                'place_of_service' => '11',
+                'units'            => 1,
+            ]),
+            'therapists' => Employee::where('active', true)->orderBy('last_name')->get(),
+        ]);
+    }
+
+    public function storeAny(Request $request): RedirectResponse
+    {
+        $request->validate(['it_admission_id' => ['required', 'exists:it_admissions,id']]);
+        $admission = Admission::findOrFail($request->input('it_admission_id'));
+        abort_unless($admission->hasSignedTreatmentPlan(), 403, 'A signed treatment plan is required before logging sessions.');
+
+        $data = $this->validated($request);
+        $data['it_admission_id'] = $admission->id;
+        Session::create($data);
+
+        return redirect()->route('clinical.it.sessions.index')->with('status', 'Session recorded.');
+    }
+
+    /** Goals from the admission's signed (or latest) treatment plan, for the picker. */
+    private function goalsArray(?Admission $admission): array
+    {
+        if (! $admission) return [];
+        $plan = $admission->treatmentPlans()->where('is_signed', true)->latest('id')->first()
+             ?? $admission->treatmentPlans()->latest('id')->first();
+        if (! $plan) return [];
+        return $plan->goals()->orderBy('goal_code')->get()->map(fn ($g) => [
+            'code'  => $g->goal_code,
+            'label' => trim($g->goal_code . ' — ' . $g->description),
+        ])->values()->all();
+    }
+
+    /** Admissions eligible for new sessions: active episode with a signed treatment plan. */
+    private function admissionOptions()
+    {
+        return Admission::query()
+            ->where('status', '!=', 'discharged')
+            ->whereHas('treatmentPlans', fn ($q) => $q->where('is_signed', true))
+            ->with('patient')
+            ->orderByDesc('admission_date')
+            ->get();
+    }
+
     public function show(Admission $admission, Session $session): View
     {
         abort_if($session->it_admission_id !== $admission->id, 404);
@@ -46,10 +103,17 @@ class SessionController extends Controller
         return view('clinical.it.sessions.show', compact('admission', 'session'));
     }
 
-    public function create(Admission $admission): View
+    public function create(Admission $admission): View|RedirectResponse
     {
+        if (! $admission->hasSignedTreatmentPlan()) {
+            return redirect()
+                ->route('clinical.it.treatment_plans.create', ['admission_id' => $admission->id])
+                ->with('error', 'Complete and sign a treatment plan before logging therapy sessions.');
+        }
+
         return view('clinical.it.sessions.form', [
-            'admission'  => $admission->load('patient'),
+            'admission'        => $admission->load('patient'),
+            'goalsByAdmission' => [$admission->id => $this->goalsArray($admission)],
             'session'    => new Session([
                 'session_date'     => now()->toDateString(),
                 'cpt_code'         => '90834',
@@ -63,6 +127,8 @@ class SessionController extends Controller
 
     public function store(Request $request, Admission $admission): RedirectResponse
     {
+        abort_unless($admission->hasSignedTreatmentPlan(), 403, 'A signed treatment plan is required before logging sessions.');
+
         $data = $this->validated($request);
         $data['it_admission_id'] = $admission->id;
         Session::create($data);
@@ -72,8 +138,9 @@ class SessionController extends Controller
     public function edit(Admission $admission, Session $session): View
     {
         return view('clinical.it.sessions.form', [
-            'admission'  => $admission->load('patient'),
-            'session'    => $session,
+            'admission'        => $admission->load('patient'),
+            'goalsByAdmission' => [$admission->id => $this->goalsArray($admission)],
+            'session'          => $session,
             'therapists' => Employee::where('active', true)->orderBy('last_name')->get(),
         ]);
     }
@@ -92,7 +159,7 @@ class SessionController extends Controller
 
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'therapist_id'     => ['nullable', 'exists:employees,id'],
             'session_date'     => ['required', 'date'],
             'start_time'       => ['nullable', 'date_format:H:i'],
@@ -108,5 +175,14 @@ class SessionController extends Controller
             'plan'             => ['nullable', 'string'],
             'goals_addressed'  => ['nullable', 'string'],
         ]);
+
+        // Duration is authoritative when both times are present — keep the metrics honest.
+        if (! empty($data['start_time']) && ! empty($data['end_time'])) {
+            $start = Carbon::createFromFormat('H:i', $data['start_time']);
+            $end   = Carbon::createFromFormat('H:i', $data['end_time']);
+            $data['duration_minutes'] = max(0, $start->diffInMinutes($end));
+        }
+
+        return $data;
     }
 }

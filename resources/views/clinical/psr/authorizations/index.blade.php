@@ -434,17 +434,23 @@
                                         <a href="{{ route('clinical.psr.authorizations.show', $a) }}" class="action-btn view" title="View">
                                             <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                                         </a>
-                                        @can('clinical.psr.authorizations.edit')
-                                            <a href="{{ route('clinical.psr.authorizations.edit', $a) }}" class="action-btn edit" title="Edit">
-                                                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
-                                            </a>
-                                        @endcan
-                                        @can('clinical.psr.authorizations.delete')
-                                            <button type="button" class="action-btn delete" title="Delete"
-                                                    onclick="confirmDeleteAuth({{ $a->id }}, {!! htmlspecialchars(json_encode($a->auth_number ?: '#'.$a->id), ENT_QUOTES) !!})">
-                                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                                            </button>
-                                        @endcan
+                                        @if($a->is_locked)
+                                            <span class="action-btn" title="Approved — locked" style="cursor:default;opacity:.45;">
+                                                <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                                            </span>
+                                        @else
+                                            @can('clinical.psr.authorizations.edit')
+                                                <a href="{{ route('clinical.psr.authorizations.edit', $a) }}" class="action-btn edit" title="Edit">
+                                                    <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                                                </a>
+                                            @endcan
+                                            @can('clinical.psr.authorizations.delete')
+                                                <button type="button" class="action-btn delete" title="Delete"
+                                                        onclick="confirmDeleteAuth({{ $a->id }}, {!! htmlspecialchars(json_encode($a->auth_number ?: '#'.$a->id), ENT_QUOTES) !!})">
+                                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            @endcan
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

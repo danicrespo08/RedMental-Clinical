@@ -2,6 +2,13 @@
 @section('title', 'IT — ' . $admission->patient->full_name)
 
 @section('content')
+    @if($admission->status === 'discharged')
+        <div class="max-w-7xl mx-auto mb-5 flex items-center gap-3 px-5 py-3.5 rounded-xl
+                    bg-amber-50 border border-amber-300 text-amber-800 text-sm font-semibold">
+            <i data-lucide="lock" class="w-4 h-4 flex-shrink-0"></i>
+            This admission is discharged — the chart is closed and its clinical records are read-only.
+        </div>
+    @endif
 @php
     use App\Models\It\Admission;
     $patient = $admission->patient;
@@ -12,6 +19,9 @@
     };
     $totalUnits = $admission->sessions->sum('units');
     $totalMinutes = $admission->sessions->sum('duration_minutes');
+    $mtp        = $admission->treatmentPlans->sortByDesc('id')->first();
+    $signedMtp  = $admission->treatmentPlans->firstWhere('is_signed', true);
+    $isDischarged = $admission->status === 'discharged';
 @endphp
 
 <style>
@@ -55,9 +65,15 @@
                     <i data-lucide="{{ $statusBadge[1] }}" class="w-3.5 h-3.5"></i> {{ $statusBadge[2] }}
                 </span>
                 @can('clinical.it.create')
-                    <a href="{{ route('clinical.it.sessions.create', $admission) }}" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold uppercase tracking-wider rounded-lg inline-flex items-center gap-1.5">
-                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> New session
-                    </a>
+                    @if($signedMtp && ! $isDischarged)
+                        <a href="{{ route('clinical.it.sessions.create', $admission) }}" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold uppercase tracking-wider rounded-lg inline-flex items-center gap-1.5">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> New session
+                        </a>
+                    @elseif(! $isDischarged)
+                        <span title="Sign a treatment plan first" class="px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 text-xs font-bold uppercase tracking-wider rounded-lg inline-flex items-center gap-1.5 cursor-not-allowed">
+                            <i data-lucide="lock" class="w-3.5 h-3.5"></i> New session
+                        </span>
+                    @endif
                 @endcan
                 @can('clinical.it.edit')
                     <a href="{{ route('clinical.it.admissions.edit', $admission) }}" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold uppercase tracking-wider rounded-lg inline-flex items-center gap-1.5">
@@ -104,6 +120,59 @@
             </div>
 
             <div class="it-section">
+                <div class="it-hd"><div class="it-num"><i data-lucide="folder-open" class="w-3.5 h-3.5"></i></div><div><div class="it-title">Clinical documents</div></div></div>
+                <div class="it-body space-y-2">
+                    {{-- Treatment plan (MTP) --}}
+                    @php
+                        $mtpState = ! $mtp ? 'pending' : ($mtp->is_signed ? 'signed' : 'draft');
+                        $mtpMap = [
+                            'pending' => ['Not started', 'text-slate-400 bg-slate-50 border-slate-200'],
+                            'draft'   => ['Draft — needs signature', 'text-amber-600 bg-amber-50 border-amber-200'],
+                            'signed'  => ['Signed', 'text-emerald-600 bg-emerald-50 border-emerald-200'],
+                        ];
+                    @endphp
+                    <div class="flex items-center justify-between gap-2 border border-slate-200 rounded-lg px-3 py-2">
+                        <div class="min-w-0">
+                            <div class="text-[12px] font-bold text-slate-700">Treatment plan</div>
+                            <span class="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border {{ $mtpMap[$mtpState][1] }}">{{ $mtpMap[$mtpState][0] }}</span>
+                        </div>
+                        @if($isDischarged)
+                            @if($mtp)<a href="{{ route('clinical.it.treatment_plans.show', $mtp) }}" class="text-[10px] font-bold uppercase text-slate-500 hover:text-violet-600">View</a>@endif
+                        @elseif(! $mtp)
+                            @can('clinical.it.treatment_plans.create')
+                                <a href="{{ route('clinical.it.treatment_plans.create', ['admission_id' => $admission->id]) }}" class="px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-bold uppercase tracking-wider rounded-md inline-flex items-center gap-1 whitespace-nowrap">
+                                    <i data-lucide="plus" class="w-3 h-3"></i> Create
+                                </a>
+                            @endcan
+                        @elseif(! $mtp->is_signed)
+                            @can('clinical.it.treatment_plans.edit')
+                                <a href="{{ route('clinical.it.treatment_plans.edit', $mtp) }}" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-bold uppercase tracking-wider rounded-md whitespace-nowrap">Continue</a>
+                            @endcan
+                        @else
+                            <a href="{{ route('clinical.it.treatment_plans.show', $mtp) }}" class="text-[10px] font-bold uppercase text-violet-600 hover:underline">View</a>
+                        @endif
+                    </div>
+
+                    {{-- Discharge summary --}}
+                    <div class="flex items-center justify-between gap-2 border border-slate-200 rounded-lg px-3 py-2">
+                        <div class="min-w-0">
+                            <div class="text-[12px] font-bold text-slate-700">Discharge summary</div>
+                            <span class="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border {{ $admission->dischargeSummary ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : 'text-slate-400 bg-slate-50 border-slate-200' }}">{{ $admission->dischargeSummary ? 'On file' : 'Not started' }}</span>
+                        </div>
+                        @if($admission->dischargeSummary)
+                            <a href="{{ route('clinical.it.discharges.show', $admission->dischargeSummary) }}" class="text-[10px] font-bold uppercase text-violet-600 hover:underline">View</a>
+                        @else
+                            @can('clinical.it.discharges.create')
+                                <a href="{{ route('clinical.it.discharges.create', ['admission_id' => $admission->id]) }}" class="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold uppercase tracking-wider rounded-md inline-flex items-center gap-1 whitespace-nowrap">
+                                    <i data-lucide="log-out" class="w-3 h-3"></i> Discharge
+                                </a>
+                            @endcan
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <div class="it-section">
                 <div class="it-hd"><div class="it-num"><i data-lucide="heart-pulse" class="w-3.5 h-3.5"></i></div><div><div class="it-title">Diagnosis (ICD-10)</div></div></div>
                 <div class="it-body">
                     @if($admission->diagnosis_code)
@@ -135,9 +204,11 @@
                         <div class="it-sub">SOAP-format notes per session</div>
                     </div>
                     @can('clinical.it.create')
-                        <a href="{{ route('clinical.it.sessions.create', $admission) }}" class="px-2.5 py-1 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 text-[10px] font-bold uppercase tracking-wider rounded-md inline-flex items-center gap-1">
-                            <i data-lucide="plus" class="w-3 h-3"></i> New
-                        </a>
+                        @if($signedMtp && ! $isDischarged)
+                            <a href="{{ route('clinical.it.sessions.create', $admission) }}" class="px-2.5 py-1 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 text-[10px] font-bold uppercase tracking-wider rounded-md inline-flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> New
+                            </a>
+                        @endif
                     @endcan
                 </div>
                 <table class="w-full text-sm">

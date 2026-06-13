@@ -45,17 +45,6 @@
             @else
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold uppercase">Inactive</span>
             @endif
-
-            <h3 class="font-semibold text-slate-900 mt-5 mb-2">Contracts</h3>
-            @if($employee->contracts->count())
-                <ul class="text-sm space-y-1">
-                    @foreach($employee->contracts as $c)
-                        <li class="text-slate-700">{{ $c->title }} <span class="text-xs text-slate-400">({{ \App\Models\Hhrr\Contract::STATUSES[$c->status] ?? $c->status }})</span></li>
-                    @endforeach
-                </ul>
-            @else
-                <p class="text-sm text-slate-400">No contracts.</p>
-            @endif
         </div>
     </div>
 @endsection

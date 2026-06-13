@@ -2,15 +2,18 @@
 
 namespace App\Models\Tcm;
 
+use App\Models\Concerns\LocksWhenDischarged;
 use App\Models\Concerns\BelongsToClient;
 use App\Models\Hhrr\Patient;
 use App\Models\Hhrr\Payer;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Authorization extends Model
 {
+    use LocksWhenDischarged;
     use BelongsToClient;
 
     protected $table = 'tcm_authorizations';
@@ -51,6 +54,14 @@ class Authorization extends Model
     public function patient(): BelongsTo   { return $this->belongsTo(Patient::class); }
     public function payer(): BelongsTo     { return $this->belongsTo(Payer::class); }
     public function creator(): BelongsTo   { return $this->belongsTo(User::class, 'created_by'); }
+
+    public function serviceLogs(): HasMany { return $this->hasMany(ServiceLog::class, 'tcm_authorization_id'); }
+
+    /** Units consumed are derived from the service log, never entered by hand. */
+    public function recalcUnitsUsed(): void
+    {
+        $this->forceFill(['used_units' => (int) $this->serviceLogs()->sum('units')])->save();
+    }
 
     public function getRemainingUnitsAttribute(): int
     {

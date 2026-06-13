@@ -2,6 +2,7 @@
 
 namespace App\Models\Psr;
 
+use App\Models\Concerns\LocksWhenDischarged;
 use App\Models\Concerns\BelongsToClient;
 use App\Models\Hhrr\Employee;
 use App\Models\Hhrr\Patient;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProgressNote extends Model
 {
+    use LocksWhenDischarged;
     use BelongsToClient;
 
     protected $table = 'psr_progress_notes';

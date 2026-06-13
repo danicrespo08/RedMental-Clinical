@@ -20,7 +20,15 @@ class DischargeController extends Controller
             ->with(['patient', 'admission', 'caseManager'])
             ->orderByDesc('discharge_date')
             ->paginate(20);
-        return view('clinical.tcm.discharges.index', compact('discharges'));
+
+        $pending = Admission::query()
+            ->where('status', 'discharged')
+            ->whereDoesntHave('dischargeSummary')
+            ->with('patient')
+            ->orderByDesc('discharge_date')
+            ->get();
+
+        return view('clinical.tcm.discharges.index', compact('discharges', 'pending'));
     }
 
     public function create(Request $request): View
@@ -66,6 +74,10 @@ class DischargeController extends Controller
         $data = $this->validated($request);
         $data['created_by'] = auth()->id();
         $discharge = DischargeSummary::create($data);
+        $discharge->admission?->update([
+            'status'         => 'discharged',
+            'discharge_date' => $discharge->discharge_date,
+        ]);
         return redirect()->route('clinical.tcm.discharges.show', $discharge)
             ->with('status', 'Discharge summary saved.');
     }

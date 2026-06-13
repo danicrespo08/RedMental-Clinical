@@ -2,12 +2,15 @@
 
 namespace App\Models\Psr;
 
+use App\Models\Concerns\LocksWhenDischarged;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DiagnosisHistory extends Model
 {
+    use LocksWhenDischarged;
+
     protected $table = 'psr_diagnosis_history';
 
     protected $fillable = [

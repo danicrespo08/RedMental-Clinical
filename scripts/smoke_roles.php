@@ -1,7 +1,7 @@
 <?php
 /**
- * Phase 3 smoke test — Role matrix + User CRUD within a client.
- * Usage: php scripts/smoke_phase3.php
+ * Smoke test — Role matrix + User CRUD within a client.
+ * Usage: php scripts/smoke_roles.php
  */
 
 require __DIR__ . '/../vendor/autoload.php';

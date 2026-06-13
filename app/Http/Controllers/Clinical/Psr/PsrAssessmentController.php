@@ -236,8 +236,33 @@ class PsrAssessmentController extends Controller
         foreach (Fars::DOMAINS as $d) {
             $rules[$d] = ['required', 'integer', 'min:1', 'max:9'];
         }
+        foreach (Fars::DOMAINS as $d) {
+            $rules["{$d}_indicators"]   = ['sometimes', 'array'];
+            $rules["{$d}_indicators.*"] = ['string'];
+        }
         $data = $request->validate($rules);
         $data['substance_abuse_history'] = $request->boolean('substance_abuse_history');
+
+        $indicators = [];
+        foreach (Fars::DOMAINS as $d) {
+            $indicators[$d] = array_values((array) $request->input("{$d}_indicators", []));
+            unset($data["{$d}_indicators"]);
+        }
+        $data['indicators_json'] = json_encode($indicators);
+
         return $data;
+    }
+
+    /** Sign-off action — locks the FARS from further edits. */
+    public function farsSign(Fars $fars): RedirectResponse
+    {
+        $user = auth()->user();
+        $fars->update([
+            'is_signed'         => true,
+            'signed_at'         => now(),
+            'signed_by_user_id' => $user->id,
+            'signed_by'         => $user->employee_id ?? null,
+        ]);
+        return back()->with('status', 'FARS signed.');
     }
 }

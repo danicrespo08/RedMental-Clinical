@@ -2,6 +2,8 @@
 
 namespace App\Models\Tcm;
 
+use App\Models\Concerns\FrozenBySuperbillLock;
+use App\Models\Concerns\LocksWhenDischarged;
 use App\Models\Concerns\BelongsToClient;
 use App\Models\Hhrr\Employee;
 use App\Models\Hhrr\Patient;
@@ -11,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ServiceLog extends Model
 {
+    use FrozenBySuperbillLock;
+    use LocksWhenDischarged;
     use BelongsToClient;
 
     protected $table = 'tcm_service_log';

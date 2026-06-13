@@ -8,6 +8,7 @@ use App\Models\Tcm\Admission;
 use App\Models\Tcm\Contact;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -42,6 +43,65 @@ class ContactController extends Controller
         ]);
     }
 
+    /** CPT codes whose unit represents this many minutes (case-management billing basis). */
+    private const UNIT_MINUTES = ['T1017' => 15, 'T1016' => 15, 'H0006' => 15, 'G9012' => 15];
+
+    /** Standalone "record contact" reachable from the cross-patient contacts list. */
+    public function createAny(): View
+    {
+        $admissions = $this->admissionOptions();
+
+        return view('clinical.tcm.contacts.form', [
+            'admission'        => null,
+            'admissions'       => $admissions,
+            'goalsByAdmission' => $admissions->mapWithKeys(fn ($a) => [$a->id => $this->goalsArray($a)]),
+            'contact'      => new Contact([
+                'contact_at'       => now()->format('Y-m-d\TH:i'),
+                'contact_type'     => 'in_person',
+                'cpt_code'         => 'T1017',
+                'place_of_service' => '12',
+                'units'            => 1,
+            ]),
+            'caseManagers' => Employee::where('active', true)->orderBy('last_name')->get(),
+            'types'        => Contact::CONTACT_TYPES,
+        ]);
+    }
+
+    public function storeAny(Request $request): RedirectResponse
+    {
+        $request->validate(['tcm_admission_id' => ['required', 'exists:tcm_admissions,id']]);
+        $admission = Admission::findOrFail($request->input('tcm_admission_id'));
+        abort_unless($admission->hasSignedTreatmentPlan(), 403, 'A signed service plan is required before logging contacts.');
+
+        $data = $this->validated($request);
+        $data['tcm_admission_id'] = $admission->id;
+        Contact::create($data);
+
+        return redirect()->route('clinical.tcm.contacts.index')->with('status', 'Contact recorded.');
+    }
+
+    private function admissionOptions()
+    {
+        return Admission::query()
+            ->where('status', '!=', 'discharged')
+            ->whereHas('treatmentPlans', fn ($q) => $q->where('is_signed', true))
+            ->with('patient')
+            ->orderByDesc('admission_date')
+            ->get();
+    }
+
+    private function goalsArray(?Admission $admission): array
+    {
+        if (! $admission) return [];
+        $plan = $admission->treatmentPlans()->where('is_signed', true)->latest('id')->first()
+             ?? $admission->treatmentPlans()->latest('id')->first();
+        if (! $plan) return [];
+        return $plan->goals()->orderBy('goal_code')->get()->map(fn ($g) => [
+            'code'  => $g->goal_code,
+            'label' => trim($g->goal_code . ' — ' . $g->description),
+        ])->values()->all();
+    }
+
     public function show(Admission $admission, Contact $contact): View
     {
         abort_if($contact->tcm_admission_id !== $admission->id, 404);
@@ -53,10 +113,17 @@ class ContactController extends Controller
         ]);
     }
 
-    public function create(Admission $admission): View
+    public function create(Admission $admission): View|RedirectResponse
     {
+        if (! $admission->hasSignedTreatmentPlan()) {
+            return redirect()
+                ->route('clinical.tcm.treatment_plans.create', ['admission_id' => $admission->id])
+                ->with('error', 'Complete and sign a service plan before logging contacts.');
+        }
+
         return view('clinical.tcm.contacts.form', [
-            'admission'    => $admission->load('patient'),
+            'admission'        => $admission->load('patient'),
+            'goalsByAdmission' => [$admission->id => $this->goalsArray($admission)],
             'contact'      => new Contact([
                 'contact_at'       => now()->format('Y-m-d\TH:i'),
                 'contact_type'     => 'in_person',
@@ -72,6 +139,8 @@ class ContactController extends Controller
 
     public function store(Request $request, Admission $admission): RedirectResponse
     {
+        abort_unless($admission->hasSignedTreatmentPlan(), 403, 'A signed service plan is required before logging contacts.');
+
         $data = $this->validated($request);
         $data['tcm_admission_id'] = $admission->id;
         Contact::create($data);
@@ -81,7 +150,8 @@ class ContactController extends Controller
     public function edit(Admission $admission, Contact $contact): View
     {
         return view('clinical.tcm.contacts.form', [
-            'admission'    => $admission->load('patient'),
+            'admission'        => $admission->load('patient'),
+            'goalsByAdmission' => [$admission->id => $this->goalsArray($admission)],
             'contact'      => $contact,
             'caseManagers' => Employee::where('active', true)->orderBy('last_name')->get(),
             'types'        => Contact::CONTACT_TYPES,
@@ -102,7 +172,7 @@ class ContactController extends Controller
 
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'case_manager_id'  => ['nullable', 'exists:employees,id'],
             'contact_at'       => ['required', 'date'],
             'contact_type'     => ['required', Rule::in(array_keys(Contact::CONTACT_TYPES))],
@@ -115,5 +185,13 @@ class ContactController extends Controller
             'summary'          => ['nullable', 'string'],
             'next_actions'     => ['nullable', 'string'],
         ]);
+
+        // Units are derived from duration ÷ the CPT's per-unit minutes (e.g. T1017 = 15 min/unit).
+        $basis = self::UNIT_MINUTES[$data['cpt_code']] ?? null;
+        if ($basis && ! empty($data['duration_minutes'])) {
+            $data['units'] = max(1, (int) round($data['duration_minutes'] / $basis));
+        }
+
+        return $data;
     }
 }

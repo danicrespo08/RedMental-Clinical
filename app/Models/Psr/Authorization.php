@@ -2,6 +2,7 @@
 
 namespace App\Models\Psr;
 
+use App\Models\Concerns\LocksWhenDischarged;
 use App\Models\Hhrr\Clinic;
 use App\Models\Concerns\BelongsToClient;
 use App\Models\Hhrr\Employee;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Authorization extends Model
 {
+    use LocksWhenDischarged;
     use BelongsToClient, SoftDeletes;
 
     protected $table = 'psr_authorizations';
@@ -75,6 +77,18 @@ class Authorization extends Model
         'docusign_sent_at'      => 'datetime',
         'docusign_completed_at' => 'datetime',
     ];
+
+    /** Units consumed are derived from the service log, never entered by hand. */
+    public function recalcUnitsUsed(): void
+    {
+        $this->forceFill(['units_used' => (int) $this->serviceLogs()->sum('units')])->save();
+    }
+
+    /** Approved authorizations are locked — payer-approved terms must not be altered. */
+    public function getIsLockedAttribute(): bool
+    {
+        return $this->status === 'approved';
+    }
 
     public function admission(): BelongsTo  { return $this->belongsTo(Admission::class, 'psr_admission_id'); }
     public function patient(): BelongsTo    { return $this->belongsTo(Patient::class); }

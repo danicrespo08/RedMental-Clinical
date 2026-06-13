@@ -104,7 +104,7 @@ class AdmissionController extends Controller
 
     public function show(Admission $admission): View
     {
-        $admission->load(['patient', 'therapist', 'sessions' => fn ($q) => $q->orderByDesc('session_date')]);
+        $admission->load(['patient', 'therapist', 'treatmentPlans.goals', 'dischargeSummary', 'sessions' => fn ($q) => $q->orderByDesc('session_date')]);
         return view('clinical.it.admissions.show', compact('admission'));
     }
 

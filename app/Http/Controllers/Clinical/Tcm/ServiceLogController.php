@@ -64,7 +64,8 @@ class ServiceLogController extends Controller
     {
         $data = $this->validated($request);
         $data['created_by'] = auth()->id();
-        ServiceLog::create($data);
+        $log = ServiceLog::create($data);
+        $log->authorization?->recalcUnitsUsed();
         return redirect()->route('clinical.tcm.service_log.index')->with('status', 'Service-log entry saved.');
     }
 
@@ -87,13 +88,19 @@ class ServiceLogController extends Controller
 
     public function update(Request $request, ServiceLog $serviceLog): RedirectResponse
     {
+        $previousAuthId = $serviceLog->tcm_authorization_id;
         $serviceLog->update($this->validated($request));
+        foreach (array_unique(array_filter([$previousAuthId, $serviceLog->tcm_authorization_id])) as $authId) {
+            Authorization::find($authId)?->recalcUnitsUsed();
+        }
         return redirect()->route('clinical.tcm.service_log.show', $serviceLog)->with('status', 'Service-log entry updated.');
     }
 
     public function destroy(ServiceLog $serviceLog): RedirectResponse
     {
+        $authId = $serviceLog->tcm_authorization_id;
         $serviceLog->delete();
+        Authorization::find($authId)?->recalcUnitsUsed();
         return redirect()->route('clinical.tcm.service_log.index')->with('status', 'Entry deleted.');
     }
 

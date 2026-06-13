@@ -36,6 +36,17 @@ class Admission extends Model
     public function serviceLogs(): HasMany      { return $this->hasMany(ServiceLog::class, 'tcm_admission_id'); }
     public function dischargeSummary()          { return $this->hasOne(DischargeSummary::class, 'tcm_admission_id'); }
 
+    /** A signed service plan is required before care contacts can be logged. */
+    public function signedTreatmentPlan()
+    {
+        return $this->treatmentPlans()->where('is_signed', true)->latest('id')->first();
+    }
+
+    public function hasSignedTreatmentPlan(): bool
+    {
+        return $this->treatmentPlans()->where('is_signed', true)->exists();
+    }
+
     public function latestTreatmentPlan()
     {
         return $this->hasOne(TreatmentPlan::class, 'tcm_admission_id')->latestOfMany('start_date');

@@ -58,7 +58,7 @@ class EmployeeController extends Controller
 
     public function show(Employee $employee): View
     {
-        return view('hhrr.employees.show', ['employee' => $employee->load('department', 'contracts')]);
+        return view('hhrr.employees.show', ['employee' => $employee->load('department')]);
     }
 
     public function edit(Employee $employee): View

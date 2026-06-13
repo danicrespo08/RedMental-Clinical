@@ -5,8 +5,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Full PSR (Psychosocial Rehabilitation) schema, mirroring the production
- * `albamed` system column-for-column with column-additions consolidated.
+ * Full PSR (Psychosocial Rehabilitation) schema with column-additions
+ * consolidated.
  *
  * Tables created (in dependency order):
  *   psr_note_templates
@@ -314,7 +314,7 @@ return new class extends Migration
             $t->unsignedInteger('units_alert_threshold')->nullable(); // % to alert (e.g., 80)
             $t->unsignedSmallInteger('expiry_alert_days')->nullable();
 
-            // DocuSign envelope tracking (mirror of albamed)
+            // DocuSign envelope tracking
             $t->string('docusign_envelope_id', 100)->nullable();
             $t->string('docusign_status', 30)->nullable();
             $t->timestamp('docusign_sent_at')->nullable();

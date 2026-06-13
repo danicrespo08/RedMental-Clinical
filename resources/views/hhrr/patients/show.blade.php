@@ -3,8 +3,8 @@
 @section('title', $patient->full_name)
 
 @section('content')
-    <a href="{{ route('hhrr.patients.index') }}" class="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 mb-3">
-        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Back to patients
+    <a href="{{ route('clinical.psr.admissions.index') }}" class="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 mb-3">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Back to admissions
     </a>
     <div class="flex items-start justify-between mb-6">
         <div>

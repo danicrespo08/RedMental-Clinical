@@ -395,11 +395,25 @@ class DemoDataSeeder extends Seeder
             $farsScores = ['depression' => 6, 'anxiety' => 5, 'cognitive' => 3, 'thought_process' => 2,
                 'interpersonal' => 4, 'family_relationships' => 3, 'work_school' => 5, 'adl' => 2,
                 'self_care' => 2, 'danger_self' => 2, 'danger_others' => 1];
+            // Checked indicators per domain — counts match the ratings above (rating = checked + 1).
+            $farsIndicators = [
+                'depression'           => ['Depressed mood', 'Anhedonic', 'Sleep problems', 'Sad', 'Hopeless'],
+                'anxiety'              => ['Anxious', 'Tense', 'Fearful', 'Panic'],
+                'cognitive'            => ['Poor concentration', 'Short attention'],
+                'thought_process'      => ['Ruminative'],
+                'interpersonal'        => ['Problems w/friends', 'Difficulty establish/maintain relationships', 'Poor social skills'],
+                'family_relationships' => ['Conflict w/relative', 'Difficulty w/partner'],
+                'work_school'          => ['Absenteeism', 'Not employed', 'Poor performance', 'Tardiness'],
+                'adl'                  => ['Money management problems'],
+                'self_care'            => ['Suffers from neglect'],
+                'danger_self'          => ['Suicidal ideation'],
+            ];
             $fars = PsrFars::firstOrCreate(
                 ['psr_admission_id' => $adm->id, 'evaluation_type' => 'admission'],
                 array_merge([
                     'evaluation_date'         => Carbon::now()->subDays(58 + $idx * 20),
                     'substance_abuse_history' => false,
+                    'indicators_json'         => json_encode($farsIndicators),
                     'mgaf_score'              => 55,
                     'is_signed'               => true,
                     'signed_at'               => Carbon::now()->subDays(58 + $idx * 20),
@@ -510,6 +524,7 @@ class DemoDataSeeder extends Seeder
                     'taxonomy_code'          => '101YM0800X',
                     'member_id'              => 'M' . str_pad((string)$patient->id, 9, '0', STR_PAD_LEFT),
                     'medicaid_id'            => 'FL' . str_pad((string)$patient->id, 8, '0', STR_PAD_LEFT),
+                    'payer_external_id'      => $medicaid->edi_payer_id,
                     'plan_type'              => 'Medicaid managed care',
                     'primary_dx_code'        => $dx,
                     'primary_dx_description' => $dxDesc,
@@ -641,6 +656,8 @@ class DemoDataSeeder extends Seeder
                         'source_type'           => 'group_session',
                         'psr_group_session_id'  => $session->id,
                         'psr_progress_note_id'  => $note->id,
+                        'psr_authorization_id'  => PsrAuthorization::where('psr_admission_id', $adm->id)->value('id'),
+                        'auth_number'           => PsrAuthorization::where('psr_admission_id', $adm->id)->value('auth_number'),
                         'billing_status'        => $i === 0 ? 'paid' : 'submitted',
                         'has_progress_note'     => true,
                         'note_status'           => 'signed',
@@ -650,6 +667,11 @@ class DemoDataSeeder extends Seeder
                     ]
                 );
             }
+        }
+
+        // Derive each PSR authorization's used units from its seeded service-log rows.
+        foreach ($psrAdms as $adm) {
+            PsrAuthorization::where('psr_admission_id', $adm->id)->get()->each->recalcUnitsUsed();
         }
 
         foreach (['Sanchez', 'Fernandez'] as $lname) {
@@ -732,14 +754,18 @@ class DemoDataSeeder extends Seeder
                 ['client_id' => $client->id, 'it_admission_id' => $adm->id],
                 [
                     'patient_id'           => $adm->patient_id,
+                    'payer_id'             => $aetna->id,
                     'auth_number'          => 'IT-AUTH-' . rand(10000, 99999),
                     'auth_type'            => 'initial',
                     'status'               => 'approved',
+                    'requested_start_date' => Carbon::now()->subDays(62)->toDateString(),
+                    'requested_end_date'   => Carbon::now()->addDays(120)->toDateString(),
                     'approved_start_date'  => Carbon::now()->subDays(60)->toDateString(),
                     'approved_end_date'    => Carbon::now()->addDays(120)->toDateString(),
                     'approved_units'       => 26,
                     'used_units'           => count($createdSessions),
                     'cpt_codes'            => ['90834', '90837'],
+                    'notes'                => 'Outpatient individual therapy, weekly 45-min sessions (90834). Commercial PPO.',
                     'created_by'           => $admin?->id,
                 ]
             );
@@ -769,6 +795,8 @@ class DemoDataSeeder extends Seeder
                     ]
                 );
             }
+
+            $itAuth->recalcUnitsUsed();
         }
 
         foreach (['Vargas', 'Mendoza'] as $lname) {
@@ -851,14 +879,18 @@ class DemoDataSeeder extends Seeder
                 ['client_id' => $client->id, 'tcm_admission_id' => $adm->id],
                 [
                     'patient_id'           => $adm->patient_id,
+                    'payer_id'             => $medicaid->id,
                     'auth_number'          => 'TCM-AUTH-' . rand(10000, 99999),
                     'auth_type'            => 'initial',
                     'status'               => 'approved',
+                    'requested_start_date' => Carbon::now()->subDays(122)->toDateString(),
+                    'requested_end_date'   => Carbon::now()->addDays(60)->toDateString(),
                     'approved_start_date'  => Carbon::now()->subDays(120)->toDateString(),
                     'approved_end_date'    => Carbon::now()->addDays(60)->toDateString(),
                     'approved_units'       => 80,
                     'used_units'           => collect($createdContacts)->sum('units'),
                     'cpt_codes'            => ['T1017', 'T1016'],
+                    'notes'                => 'Targeted case management, 15-min units (T1017). FL Medicaid.',
                     'created_by'           => $admin?->id,
                 ]
             );
@@ -886,6 +918,8 @@ class DemoDataSeeder extends Seeder
                     ]
                 );
             }
+
+            $tcmAuth->recalcUnitsUsed();
         }
 
         $this->command->info('Demo data seeded: ' . count($patientsData) . ' patients, ' . count($people) . ' employees, ' . count($clinicList) . ' clinics.');

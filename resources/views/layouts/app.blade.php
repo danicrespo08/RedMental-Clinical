@@ -276,5 +276,6 @@
         Swal.fire({ icon: 'error', title: 'Please fix the form', text: @json($errors->first()) });
     @endif
 </script>
+@stack('scripts')
 </body>
 </html>

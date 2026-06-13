@@ -2,6 +2,7 @@
 
 namespace App\Models\It;
 
+use App\Models\Concerns\LocksWhenDischarged;
 use App\Models\Concerns\BelongsToClient;
 use App\Models\Hhrr\Employee;
 use Illuminate\Database\Eloquent\Model;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Session extends Model
 {
+    use LocksWhenDischarged;
     use BelongsToClient;
 
     protected $table = 'it_sessions';

@@ -37,11 +37,6 @@ class Patient extends Model
         return $this->hasMany(PatientInsurance::class);
     }
 
-    public function contracts(): HasMany
-    {
-        return $this->hasMany(Contract::class);
-    }
-
     public function assignedProvider(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'assigned_provider_id');

@@ -133,9 +133,10 @@
                 </div>
                 <div>
                     <label class="field-label">Used units</label>
-                    <input type="number" name="used_units" min="0" required
-                           value="{{ old('used_units', $auth->used_units ?? 0) }}"
-                           class="field-input field-mono">
+                    <div class="field-input field-mono" style="background:#f8fafc;color:#475569;cursor:default;">
+                        {{ $auth->used_units ?? 0 }}{{ $auth->approved_units ? ' / ' . $auth->approved_units : '' }}
+                        <span style="font-size:.6rem;color:#94a3b8;font-family:sans-serif;"> tracked from service log</span>
+                    </div>
                 </div>
             </div>
         </div>

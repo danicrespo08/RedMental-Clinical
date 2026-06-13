@@ -20,7 +20,16 @@ class DischargeController extends Controller
             ->with(['patient', 'admission', 'therapist'])
             ->orderByDesc('discharge_date')
             ->paginate(20);
-        return view('clinical.it.discharges.index', compact('discharges'));
+
+        // Discharged admissions that still have no discharge summary on file.
+        $pending = Admission::query()
+            ->where('status', 'discharged')
+            ->whereDoesntHave('dischargeSummary')
+            ->with('patient')
+            ->orderByDesc('discharge_date')
+            ->get();
+
+        return view('clinical.it.discharges.index', compact('discharges', 'pending'));
     }
 
     public function create(Request $request): View
@@ -67,6 +76,11 @@ class DischargeController extends Controller
         $data = $this->validated($request);
         $data['created_by'] = auth()->id();
         $discharge = DischargeSummary::create($data);
+        // Closing the chart: move the admission to discharged.
+        $discharge->admission?->update([
+            'status'         => 'discharged',
+            'discharge_date' => $discharge->discharge_date,
+        ]);
         return redirect()->route('clinical.it.discharges.show', $discharge)
             ->with('status', 'Discharge summary saved.');
     }

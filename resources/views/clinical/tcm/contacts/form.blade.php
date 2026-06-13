@@ -3,8 +3,25 @@
 
 @section('content')
 @php
-    $isEdit = $contact->exists;
-    $patient = $admission->patient;
+    $isEdit     = $contact->exists;
+    $standalone = ! isset($admission) || ! $admission;
+    $patient    = $standalone ? null : $admission->patient;
+    $backUrl    = $standalone ? route('clinical.tcm.contacts.index') : route('clinical.tcm.admissions.show', $admission);
+    $formAction = $standalone
+        ? route('clinical.tcm.contacts.store_any')
+        : ($isEdit ? route('clinical.tcm.contacts.update', [$admission, $contact]) : route('clinical.tcm.contacts.store', $admission));
+
+    // CPT catalog: 'unit_minutes' = minutes one billable unit represents.
+    $cptCatalog = [
+        'T1017' => ['label' => 'T1017 — Targeted case management, per 15 min', 'unit_minutes' => 15],
+        'T1016' => ['label' => 'T1016 — Case management, per 15 min',          'unit_minutes' => 15],
+        'H0006' => ['label' => 'H0006 — SA case management, per 15 min',        'unit_minutes' => 15],
+        'G9012' => ['label' => 'G9012 — Other case management, per 15 min',     'unit_minutes' => 15],
+    ];
+    $initialAdmissionId = $standalone ? (string) old('tcm_admission_id', '') : (string) $admission->id;
+    $initialSelected = collect(explode('; ', (string) old('goals_addressed', $contact->goals_addressed)))
+        ->map(fn ($x) => trim($x))->filter()->values();
+    $goalsByAdmission = $goalsByAdmission ?? [];
 @endphp
 
 <style>
@@ -39,11 +56,25 @@
     }
 </style>
 
-<div class="max-w-5xl mx-auto" x-data="{ contactType: '{{ old('contact_type', $contact->contact_type) }}' }">
+<div class="max-w-5xl mx-auto" x-data="{
+        contactType: @js((string) (old('contact_type', $contact->contact_type) ?? 'in_person')),
+        admissionId: @js($initialAdmissionId),
+        duration: @js((string) (old('duration_minutes', $contact->duration_minutes) ?? '')),
+        units: @js((string) (old('units', $contact->units) ?? '1')),
+        cpt: @js((string) (old('cpt_code', $contact->cpt_code) ?? '')),
+        selected: @js($initialSelected),
+        goalsByAdmission: @js($goalsByAdmission),
+        catalog: @js($cptCatalog),
+        get goals() { return this.goalsByAdmission[this.admissionId] || []; },
+        get goalsText() { return this.selected.join('; '); },
+        toggle(label) { const i = this.selected.indexOf(label); i === -1 ? this.selected.push(label) : this.selected.splice(i, 1); },
+        onAdmissionChange() { this.selected = []; },
+        recomputeUnits() { const c = this.catalog[this.cpt]; if (c && this.duration > 0) { this.units = Math.max(1, Math.round(this.duration / c.unit_minutes)); } },
+    }">
     {{-- HEADER --}}
     <div class="bg-white border border-slate-200 rounded-2xl p-5 mb-4 shadow-sm">
         <div class="flex items-center gap-3">
-            <a href="{{ route('clinical.tcm.admissions.show', $admission) }}" class="w-9 h-9 rounded-lg bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-orange-600 transition-colors border border-slate-200 flex-shrink-0">
+            <a href="{{ $backUrl }}" class="w-9 h-9 rounded-lg bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-orange-600 transition-colors border border-slate-200 flex-shrink-0">
                 <i data-lucide="arrow-left" class="w-4 h-4"></i>
             </a>
             <div class="p-2.5 bg-gradient-to-br from-orange-500 to-orange-700 text-white rounded-xl shadow-md shadow-orange-500/25 flex-shrink-0">
@@ -52,16 +83,36 @@
             <div class="min-w-0">
                 <div class="text-xs font-bold uppercase tracking-widest text-orange-500">TCM · Care contact</div>
                 <h1 class="text-xl font-black text-slate-800 truncate">{{ $isEdit ? 'Edit contact' : 'Record contact' }}</h1>
-                <p class="text-[11px] text-slate-500 font-semibold mt-0.5">{{ $patient->full_name }} — MRN {{ $patient->mrn ?? '---' }}</p>
+                <p class="text-[11px] text-slate-500 font-semibold mt-0.5">{{ $standalone ? 'Select the patient below' : $patient->full_name . ' — MRN ' . ($patient->mrn ?? '---') }}</p>
             </div>
         </div>
     </div>
 
     @include('hhrr._shared._flash')
 
-    <form method="POST" action="{{ $isEdit ? route('clinical.tcm.contacts.update', [$admission, $contact]) : route('clinical.tcm.contacts.store', $admission) }}">
+    <form method="POST" action="{{ $formAction }}">
         @csrf
-        @if($isEdit) @method('PUT') @endif
+        @if($isEdit && ! $standalone) @method('PUT') @endif
+
+        @if($standalone)
+        <div class="tcm-section">
+            <div class="tcm-hd"><div class="tcm-num"><i data-lucide="user" class="w-3.5 h-3.5"></i></div><div><div class="tcm-title">Patient</div><div class="tcm-sub">Admission with a signed service plan</div></div></div>
+            <div class="tcm-body">
+                <label class="field-label">Patient / TCM admission *</label>
+                <select name="tcm_admission_id" x-model="admissionId" @change="onAdmissionChange()" required class="field-select">
+                    <option value="">— Select patient —</option>
+                    @foreach($admissions as $a)
+                        <option value="{{ $a->id }}" @selected(old('tcm_admission_id') == $a->id)>
+                            {{ $a->patient?->full_name }} — MRN {{ $a->patient?->mrn ?? '---' }} (adm {{ optional($a->admission_date)->format('M j, Y') }})
+                        </option>
+                    @endforeach
+                </select>
+                @if($admissions->isEmpty())
+                    <p class="text-[11px] text-amber-600 font-semibold mt-2">No eligible admissions — a patient needs an active TCM admission with a signed service plan first.</p>
+                @endif
+            </div>
+        </div>
+        @endif
 
         {{-- 1. Contact type --}}
         <div class="tcm-section">
@@ -98,8 +149,7 @@
                 </div>
                 <div>
                     <label class="field-label">Duration (min)</label>
-                    <input type="number" name="duration_minutes" min="0"
-                           value="{{ old('duration_minutes', $contact->duration_minutes) }}"
+                    <input type="number" name="duration_minutes" min="0" x-model="duration" @input="recomputeUnits()"
                            class="field-input field-mono">
                 </div>
                 <div>
@@ -123,15 +173,15 @@
             <div class="tcm-hd"><div class="tcm-num">3</div><div><div class="tcm-title">Billing</div></div></div>
             <div class="tcm-body grid grid-cols-3 gap-3">
                 <div>
-                    <label class="field-label">CPT *</label>
-                    <input type="text" name="cpt_code" required maxlength="10"
-                           value="{{ old('cpt_code', $contact->cpt_code) }}"
-                           class="field-input field-mono" placeholder="T1017">
+                    <label class="field-label">CPT / service *</label>
+                    <select name="cpt_code" x-model="cpt" @change="recomputeUnits()" required class="field-select field-mono">
+                        <option value="">— Select service —</option>
+                        @foreach($cptCatalog as $code => $info)<option value="{{ $code }}">{{ $info['label'] }}</option>@endforeach
+                    </select>
                 </div>
                 <div>
-                    <label class="field-label">Units *</label>
-                    <input type="number" name="units" min="1" required
-                           value="{{ old('units', $contact->units) }}"
+                    <label class="field-label">Units * <span class="text-orange-500" x-show="catalog[cpt]" x-text="catalog[cpt] ? '· ' + catalog[cpt].unit_minutes + ' min/unit' : ''"></span></label>
+                    <input type="number" name="units" min="1" required x-model="units"
                            class="field-input field-mono">
                 </div>
                 <div>
@@ -148,8 +198,21 @@
             <div class="tcm-hd"><div class="tcm-num">4</div><div><div class="tcm-title">Narrative</div><div class="tcm-sub">Goals worked, summary of the contact, follow-up actions</div></div></div>
             <div class="tcm-body grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="field-label">Goals addressed</label>
-                    <textarea name="goals_addressed" class="field-textarea" placeholder="Reference service-plan goals worked during this contact.">{{ old('goals_addressed', $contact->goals_addressed) }}</textarea>
+                    <label class="field-label">Goals addressed <span class="text-slate-400 normal-case font-semibold">— from the service plan</span></label>
+                    <div class="space-y-1.5">
+                        <template x-for="g in goals" :key="g.code">
+                            <label class="flex items-start gap-2.5 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer hover:border-orange-300"
+                                   :class="selected.includes(g.label) ? 'bg-orange-50 border-orange-300' : 'bg-white'">
+                                <input type="checkbox" class="mt-0.5" style="accent-color:#ea580c;"
+                                       :value="g.label" :checked="selected.includes(g.label)" @change="toggle(g.label)">
+                                <span class="text-[12px] font-semibold text-slate-700" x-text="g.label"></span>
+                            </label>
+                        </template>
+                        <p x-show="goals.length === 0" class="text-[11px] text-amber-600 font-semibold py-1">
+                            No service-plan goals available{{ $standalone ? ' — select a patient first' : '' }}.
+                        </p>
+                    </div>
+                    <input type="hidden" name="goals_addressed" :value="goalsText">
                 </div>
                 <div>
                     <label class="field-label">Summary</label>
@@ -163,7 +226,7 @@
         </div>
 
         <div class="flex items-center justify-end gap-2 pb-6">
-            <a href="{{ route('clinical.tcm.admissions.show', $admission) }}" class="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50">Cancel</a>
+            <a href="{{ $backUrl }}" class="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50">Cancel</a>
             <button class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold uppercase tracking-wider rounded-lg inline-flex items-center gap-1.5 shadow-md shadow-orange-500/25">
                 <i data-lucide="save" class="w-4 h-4"></i> {{ $isEdit ? 'Save changes' : 'Record contact' }}
             </button>

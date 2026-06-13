@@ -2,6 +2,7 @@
 
 namespace App\Models\Psr;
 
+use App\Models\Concerns\LocksWhenDischarged;
 use App\Models\Hhrr\Employee;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class TreatmentPlan extends Model
 {
+    use LocksWhenDischarged;
+
     protected $table = 'psr_treatment_plans';
 
     public const STRENGTHS = [

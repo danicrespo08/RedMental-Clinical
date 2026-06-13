@@ -164,8 +164,14 @@ class PsrAuthorizationController extends Controller
         return view('clinical.psr.authorizations.show', ['auth' => $authorization]);
     }
 
-    public function edit(Authorization $authorization): View
+    public function edit(Authorization $authorization): View|RedirectResponse
     {
+        if ($authorization->is_locked) {
+            return redirect()
+                ->route('clinical.psr.authorizations.show', $authorization)
+                ->with('error', 'Approved authorizations are locked and can only be viewed.');
+        }
+
         return view('clinical.psr.authorizations.form', [
             'auth'       => $authorization,
             'admission'  => $authorization->admission()->with(['patient', 'clinic'])->first(),
@@ -182,6 +188,8 @@ class PsrAuthorizationController extends Controller
 
     public function update(Request $request, Authorization $authorization): RedirectResponse
     {
+        abort_if($authorization->is_locked, 403, 'Approved authorizations are locked and cannot be edited.');
+
         $data = $this->validated($request);
         $data['updated_by'] = auth()->id();
         $authorization->update($data);
@@ -193,6 +201,8 @@ class PsrAuthorizationController extends Controller
 
     public function destroy(Authorization $authorization): RedirectResponse
     {
+        abort_if($authorization->is_locked, 403, 'Approved authorizations are locked and cannot be deleted.');
+
         $authorization->delete();
         return redirect()
             ->route('clinical.psr.authorizations.index')
@@ -219,7 +229,7 @@ class PsrAuthorizationController extends Controller
             'submission_date','decision_date',
         ];
         $nullableInts = [
-            'units_requested','units_approved','units_used',
+            'units_requested','units_approved',
             'units_alert_threshold','expiry_alert_days',
             'rendering_provider_employee_id','supervising_provider_id',
             'payer_id','clinic_id',
@@ -249,7 +259,6 @@ class PsrAuthorizationController extends Controller
 
             'units_requested'     => ['nullable', 'integer', 'min:0'],
             'units_approved'      => ['nullable', 'integer', 'min:0'],
-            'units_used'          => ['nullable', 'integer', 'min:0'],
             'unit_type'           => ['required', Rule::in(array_keys(Authorization::UNIT_TYPES))],
             'frequency'           => ['nullable', 'string', 'max:100'],
 

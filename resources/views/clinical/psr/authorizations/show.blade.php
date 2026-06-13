@@ -189,11 +189,18 @@
                     <i data-lucide="folder-open" class="w-3.5 h-3.5"></i> Admission
                 </a>
                 @endif
-                <a href="{{ route('clinical.psr.authorizations.edit', $auth) }}"
-                   class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold uppercase
-                          bg-blue-600 hover:bg-blue-700 text-white transition-colors">
-                    <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Edit
-                </a>
+                @if($auth->is_locked)
+                    <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold uppercase
+                                 bg-emerald-100 text-emerald-700 border border-emerald-300">
+                        <i data-lucide="lock" class="w-3.5 h-3.5"></i> Approved — locked
+                    </span>
+                @else
+                    <a href="{{ route('clinical.psr.authorizations.edit', $auth) }}"
+                       class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold uppercase
+                              bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                        <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Edit
+                    </a>
+                @endif
             </div>
         </div>
     </div>

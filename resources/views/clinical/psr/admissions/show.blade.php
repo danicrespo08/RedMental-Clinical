@@ -2,6 +2,13 @@
 @section('title', 'PSR — ' . ($admission->patient?->full_name ?? 'Admission'))
 
 @section('content')
+    @if($admission->status === 'discharged')
+        <div class="max-w-7xl mx-auto mb-5 flex items-center gap-3 px-5 py-3.5 rounded-xl
+                    bg-amber-50 border border-amber-300 text-amber-800 text-sm font-semibold">
+            <i data-lucide="lock" class="w-4 h-4 flex-shrink-0"></i>
+            This admission is discharged — the chart is closed and its clinical records are read-only.
+        </div>
+    @endif
 
 <style>
     /* ── Document cards (clinical forms grid) ─────────────── */
@@ -100,7 +107,9 @@
     $checks = [
         ['key' => 'intake', 'label' => 'Intake form',          'icon' => 'clipboard-list',
          'state' => ! $intake ? 'pending' : ($intake->is_signed ? 'signed' : 'draft'),
-         'href'  => '#'],
+         'href'  => $intake
+                    ? route('clinical.psr.intakes.edit', $intake)
+                    : route('clinical.psr.intakes.create', ['admission_id' => $admission->id])],
         ['key' => 'bio', 'label' => 'Bio-psychosocial',        'icon' => 'brain',
          'state' => ! $bio ? 'pending' : ($bio->is_signed ? 'signed' : 'draft'),
          'href'  => $bio
@@ -113,7 +122,9 @@
                     : route('clinical.psr.treatment_plans.create', ['admission_id' => $admission->id])],
         ['key' => 'fars', 'label' => 'FARS',                   'icon' => 'gauge',
          'state' => ! $latestFars ? 'pending' : ($latestFars->is_signed ? 'signed' : 'draft'),
-         'href'  => route('clinical.psr.assessments.fars.create', $admission)],
+         'href'  => $latestFars
+                    ? route('clinical.psr.assessments.fars.edit', $latestFars)
+                    : route('clinical.psr.assessments.fars.create', $admission)],
         ['key' => 'auth', 'label' => 'Authorization',          'icon' => 'key-round',
          'state' => $activeAuth ? 'signed' : ($admission->authorizations->isEmpty() ? 'pending' : 'draft'),
          'href'  => $admission->authorizations->isNotEmpty()

@@ -1,13 +1,12 @@
 <?php
 /**
- * Phase 5 smoke — PSR full clinical chain
+ * Smoke test — PSR full clinical chain.
  * Verifies that every PSR submodule controller renders index/create/edit
  * and that admission → assessment → FARS → treatment plan + goals →
  * authorization → group session → progress note → service log → MTP review →
- * discharge all persist correctly. The IT and TCM modules still use the
- * legacy scaffold (their dedicated tables come in upcoming phases).
+ * discharge all persist correctly.
  *
- * Usage: php scripts/smoke_phase5.php
+ * Usage: php scripts/smoke_psr.php
  */
 
 require __DIR__ . '/../vendor/autoload.php';

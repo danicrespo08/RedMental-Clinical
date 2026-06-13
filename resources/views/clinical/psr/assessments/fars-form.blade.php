@@ -115,6 +115,8 @@
     .btn-secondary:hover { background: #e2e8f0; }
     .btn-primary { background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; box-shadow: 0 4px 12px rgba(2,132,199,.25); }
     .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(2,132,199,.32); }
+    .btn-success { background: linear-gradient(135deg, #059669, #10b981); color: #fff; box-shadow: 0 4px 12px rgba(5,150,105,.25); }
+    .btn-success:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(5,150,105,.32); }
 
     @media (max-width: 768px) {
         .paper-doc { padding: 22px; }
@@ -296,12 +298,36 @@
             @endif
         </div>
     </form>
+
+    @if($fars->exists && ! $isSigned)
+        @can('clinical.psr.assessments.sign')
+            <form method="POST" action="{{ route('clinical.psr.assessments.fars.sign', $fars) }}" class="mt-4 text-right">@csrf
+                <button class="btn btn-success">
+                    <i data-lucide="pen-tool" class="w-4 h-4"></i> Finalize &amp; sign FARS
+                </button>
+            </form>
+        @endcan
+    @endif
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof lucide !== 'undefined') lucide.createIcons();
     updateFarsTotal();
+
+    // Checking indicators drives the domain rating: 0 checked = 1 (no problem),
+    // each additional indicator raises severity by one, capped at 9 (extreme).
+    document.querySelectorAll('.domain-section').forEach(section => {
+        const rating = section.querySelector('.domain-rating-input');
+        if (!rating) return;
+        section.querySelectorAll('.indicators-grid input[type=checkbox]').forEach(box => {
+            box.addEventListener('change', () => {
+                const checked = section.querySelectorAll('.indicators-grid input[type=checkbox]:checked').length;
+                rating.value = Math.min(9, checked + 1);
+                updateFarsTotal();
+            });
+        });
+    });
 });
 
 function updateFarsTotal() {

@@ -109,7 +109,6 @@ class AuthorizationController extends Controller
             'approved_start_date'  => ['nullable', 'date'],
             'approved_end_date'    => ['nullable', 'date', 'after_or_equal:approved_start_date'],
             'approved_units'       => ['required', 'integer', 'min:0'],
-            'used_units'           => ['required', 'integer', 'min:0'],
             'cpt_codes'            => ['nullable', 'array'],
             'cpt_codes.*'          => ['string', 'max:20'],
             'denial_reason'        => ['nullable', 'string'],

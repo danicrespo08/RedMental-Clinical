@@ -30,6 +30,36 @@
         </div>
     </div>
 
+    @if(isset($pending) && $pending->count())
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
+            <div class="flex items-center gap-2 mb-2.5">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600"></i>
+                <h2 class="text-[12px] font-black uppercase tracking-wider text-amber-700">Discharged — pending summary</h2>
+                <span class="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">{{ $pending->count() }}</span>
+            </div>
+            <div class="space-y-2">
+                @foreach($pending as $adm)
+                    <div class="flex items-center justify-between gap-3 bg-white border border-amber-200 rounded-lg px-3 py-2">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-400 to-slate-600 text-white flex items-center justify-center font-black text-[11px]">
+                                {{ strtoupper(mb_substr($adm->patient?->first_name ?? '?', 0, 1)) }}{{ strtoupper(mb_substr($adm->patient?->last_name ?? '?', 0, 1)) }}
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-bold text-slate-800 text-[13px] truncate">{{ $adm->patient?->full_name ?? '—' }}</div>
+                                <div class="text-[10px] text-slate-400">Discharged {{ optional($adm->discharge_date)->format('M j, Y') ?? '—' }} · no summary on file</div>
+                            </div>
+                        </div>
+                        @can('clinical.it.discharges.create')
+                            <a href="{{ route('clinical.it.discharges.create', ['admission_id' => $adm->id]) }}" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold uppercase tracking-wider rounded-md inline-flex items-center gap-1 whitespace-nowrap">
+                                <i data-lucide="file-plus" class="w-3 h-3"></i> Write summary
+                            </a>
+                        @endcan
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <table class="w-full text-sm">
             <thead class="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">

@@ -2,6 +2,8 @@
 
 namespace App\Models\Psr;
 
+use App\Models\Concerns\FrozenBySuperbillLock;
+use App\Models\Concerns\LocksWhenDischarged;
 use App\Models\Hhrr\Clinic;
 use App\Models\Concerns\BelongsToClient;
 use App\Models\Hhrr\Employee;
@@ -12,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ServiceLog extends Model
 {
+    use FrozenBySuperbillLock;
+    use LocksWhenDischarged;
     use BelongsToClient;
 
     protected $table = 'psr_service_log';

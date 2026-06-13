@@ -16,6 +16,11 @@
                     <p class="text-[11px] text-slate-400 font-semibold mt-0.5">Cross-patient session log</p>
                 </div>
             </div>
+            @can('clinical.it.create')
+                <a href="{{ route('clinical.it.sessions.create_any') }}" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold uppercase tracking-wider rounded-lg inline-flex items-center gap-1.5 self-start">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> New session
+                </a>
+            @endcan
         </div>
     </div>
 
@@ -92,6 +97,11 @@
                             <div class="flex items-center justify-end gap-1.5">
                                 <a href="{{ route('clinical.it.sessions.show', [$session->admission, $session]) }}" class="p-1.5 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded"><i data-lucide="eye" class="w-4 h-4"></i></a>
                                 @can('clinical.it.edit')<a href="{{ route('clinical.it.sessions.edit', [$session->admission, $session]) }}" class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded"><i data-lucide="pencil" class="w-4 h-4"></i></a>@endcan
+                                @can('clinical.it.delete')
+                                    <form method="POST" action="{{ route('clinical.it.sessions.destroy', [$session->admission, $session]) }}" data-confirm-delete="the {{ $session->session_date->format('M j, Y') }} session">@csrf @method('DELETE')
+                                        <button type="submit" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                    </form>
+                                @endcan
                             </div>
                         </td>
                     </tr>

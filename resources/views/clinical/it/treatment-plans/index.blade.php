@@ -4,15 +4,22 @@
 @section('content')
 <div class="max-w-7xl mx-auto">
     <div class="bg-white border border-slate-200 rounded-2xl p-5 mb-4 shadow-sm">
-        <div class="flex items-center gap-3">
-            <div class="p-2.5 bg-gradient-to-br from-violet-500 to-purple-700 text-white rounded-xl shadow-md shadow-violet-500/25">
-                <i data-lucide="list-checks" class="w-5 h-5"></i>
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-gradient-to-br from-violet-500 to-purple-700 text-white rounded-xl shadow-md shadow-violet-500/25">
+                    <i data-lucide="list-checks" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-bold uppercase tracking-widest text-violet-500">IT · Treatment plans</div>
+                    <h1 class="text-xl font-black text-slate-800">Master treatment plans</h1>
+                    <p class="text-[11px] text-slate-400 font-semibold mt-0.5">Goals · objectives · interventions for each IT episode</p>
+                </div>
             </div>
-            <div>
-                <div class="text-xs font-bold uppercase tracking-widest text-violet-500">IT · Treatment plans</div>
-                <h1 class="text-xl font-black text-slate-800">Master treatment plans</h1>
-                <p class="text-[11px] text-slate-400 font-semibold mt-0.5">Goals · objectives · interventions for each IT episode</p>
-            </div>
+            @can('clinical.it.treatment_plans.create')
+                <a href="{{ route('clinical.it.admissions.index') }}" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold uppercase tracking-wider rounded-lg inline-flex items-center gap-1.5 self-start">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> New plan — select patient
+                </a>
+            @endcan
         </div>
     </div>
 

@@ -12,6 +12,59 @@
 <style>
     body { background: #f1f5f9; }
 
+    /* smart-form helpers: live lookups, quick-pick chips, autofill flash */
+    .suggest-wrap { position: relative; }
+    .suggest-list {
+        position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 4px);
+        background: #fff; border: 1px solid #e2e8f0; border-radius: .65rem;
+        box-shadow: 0 16px 40px -12px rgba(15,23,42,.25);
+        max-height: 260px; overflow-y: auto; display: none;
+    }
+    .suggest-list.open { display: block; }
+    .suggest-item {
+        display: flex; gap: .6rem; align-items: baseline;
+        padding: .5rem .75rem; cursor: pointer; font-size: .78rem;
+        border-bottom: 1px solid #f8fafc;
+    }
+    .suggest-item:hover, .suggest-item.active { background: #eff6ff; }
+    .suggest-item .s-code { font-family: ui-monospace, monospace; font-weight: 800; color: #1d4ed8; white-space: nowrap; }
+    .suggest-item .s-desc { color: #475569; }
+
+    .chip-row { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .75rem; }
+    .svc-chip {
+        display: inline-flex; align-items: center; gap: .35rem;
+        padding: .3rem .65rem; border-radius: 999px; cursor: pointer;
+        background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;
+        font-size: .68rem; font-weight: 800; font-family: ui-monospace, monospace;
+        transition: all .15s ease;
+    }
+    .svc-chip:hover { background: #dbeafe; transform: translateY(-1px); }
+    .svc-chip span { font-family: inherit; font-weight: 600; color: #3b82f6; }
+
+    .live-badge {
+        display: inline-flex; align-items: center; gap: .25rem;
+        font-size: .55rem; font-weight: 800; letter-spacing: .05em;
+        color: #059669; text-transform: uppercase; margin-left: .4rem;
+    }
+    .live-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #10b981; animation: pulse-dot 2s infinite; }
+    @keyframes pulse-dot { 50% { opacity: .35; } }
+
+    @keyframes smart-fill-flash {
+        0% { background: #d1fae5; border-color: #34d399; }
+        100% { background: #fff; border-color: #e2e8f0; }
+    }
+    .smart-filled { animation: smart-fill-flash 1.2s ease; }
+
+    .lookup-btn {
+        flex-shrink: 0; display: inline-flex; align-items: center; gap: .3rem;
+        padding: .55rem .7rem; border-radius: .55rem; cursor: pointer;
+        background: linear-gradient(135deg, #3b82f6, #06b6d4); color: #fff;
+        border: none; font-size: .65rem; font-weight: 800; text-transform: uppercase;
+        box-shadow: 0 4px 10px -3px rgba(59,130,246,.5); transition: all .15s;
+    }
+    .lookup-btn:hover { transform: translateY(-1px); }
+    .lookup-btn:disabled { opacity: .5; cursor: wait; }
+
     /* paper document container */
     .paper-doc {
         max-width: 900px; margin: 0 auto;
@@ -266,11 +319,12 @@
                                class="field-input font-mono">
                     </div>
                     <div>
-                        <label class="field-label">Payer</label>
-                        <select name="payer_id" class="field-select">
+                        <label class="field-label">Payer <span class="live-badge">FL registry autofill</span></label>
+                        <select name="payer_id" id="payer_select" class="field-select">
                             <option value="">—</option>
                             @foreach($payers as $p)
-                                <option value="{{ $p->id }}" @selected(old('payer_id', $auth->payer_id) == $p->id)>{{ $p->name }}</option>
+                                <option value="{{ $p->id }}" @selected(old('payer_id', $auth->payer_id) == $p->id)
+                                        data-edi="{{ $p->edi_payer_id }}" data-type="{{ $p->type }}" data-phone="{{ $p->phone }}">{{ $p->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -323,28 +377,49 @@
                     <span class="section-num">3</span>
                     <span class="section-title">Service / Billing Codes</span>
                 </div>
+                <div class="chip-row" id="service_chips"></div>
                 <div class="grid-4">
-                    <div class="sm:col-span-1">
-                        <label class="field-label">Service Code (CPT/HCPCS)</label>
-                        <input type="text" name="service_code" maxlength="20"
+                    <div class="sm:col-span-1 suggest-wrap">
+                        <label class="field-label">Service Code (CPT/HCPCS) <span class="live-badge">NLM live</span></label>
+                        <input type="text" name="service_code" id="service_code_input" maxlength="20" autocomplete="off"
                                value="{{ old('service_code', $auth->service_code) }}"
+                               placeholder="Type code or keyword…"
                                class="field-input font-mono">
+                        <div class="suggest-list" id="service_code_suggest"></div>
                     </div>
                     <div class="sm:col-span-3">
                         <label class="field-label">Service Description</label>
-                        <input type="text" name="service_description" maxlength="255"
+                        <input type="text" name="service_description" id="service_description_input" maxlength="255"
                                value="{{ old('service_description', $auth->service_description) }}"
-                               placeholder="e.g. Psychosocial Rehabilitation, per 15 min"
+                               placeholder="Auto-filled when a code is selected"
                                class="field-input">
                     </div>
                     @foreach(['modifier_1'=>'Modifier 1','modifier_2'=>'Modifier 2','modifier_3'=>'Modifier 3','modifier_4'=>'Modifier 4'] as $f => $label)
                         <div>
                             <label class="field-label">{{ $label }}</label>
-                            <input type="text" name="{{ $f }}" maxlength="10"
+                            <input type="text" name="{{ $f }}" maxlength="10" list="modifier_options"
                                    value="{{ old($f, $auth->{$f}) }}"
+                                   placeholder="HN, HO, HQ…"
                                    class="field-input font-mono">
                         </div>
                     @endforeach
+                    <datalist id="modifier_options">
+                        <option value="HM">Less than bachelor's degree level provider</option>
+                        <option value="HN">Bachelor's degree level provider</option>
+                        <option value="HO">Master's degree level provider</option>
+                        <option value="HP">Doctoral level provider</option>
+                        <option value="HQ">Group setting</option>
+                        <option value="HR">Family/couple with client present</option>
+                        <option value="HS">Family/couple without client present</option>
+                        <option value="HA">Child/adolescent program</option>
+                        <option value="HB">Adult program, non-geriatric</option>
+                        <option value="HE">Mental health program</option>
+                        <option value="HF">Substance abuse program</option>
+                        <option value="GT">Telehealth — interactive audio/video</option>
+                        <option value="95">Synchronous telemedicine service</option>
+                        <option value="U1">Medicaid level of care 1 (state-defined)</option>
+                        <option value="U2">Medicaid level of care 2 (state-defined)</option>
+                    </datalist>
                     <div>
                         <label class="field-label">Place of Service</label>
                         <input type="text" name="place_of_service" maxlength="10"
@@ -381,10 +456,11 @@
                                class="field-input font-mono">
                     </div>
                     <div>
-                        <label class="field-label">Units Used</label>
-                        <input type="number" name="units_used" min="0"
-                               value="{{ old('units_used', $auth->units_used) }}"
-                               class="field-input font-mono">
+                        <label class="field-label">Units Used <span class="live-badge">auto</span></label>
+                        <div class="field-input font-mono" style="background:#f8fafc;color:#475569;cursor:default;">
+                            {{ $isEdit ? $auth->units_used . ($auth->units_approved ? ' / ' . $auth->units_approved : '') : '0' }}
+                            <span style="font-size:.6rem;color:#94a3b8;font-family:sans-serif;"> tracked from service log</span>
+                        </div>
                     </div>
                     <div>
                         <label class="field-label">Unit Type <span class="req">*</span></label>
@@ -452,10 +528,10 @@
                 <div class="grid-3">
                     <div>
                         <label class="field-label">Rendering Provider</label>
-                        <select name="rendering_provider_employee_id" class="field-select">
+                        <select name="rendering_provider_employee_id" id="rendering_provider_select" class="field-select">
                             <option value="">—</option>
                             @foreach($providers as $p)
-                                <option value="{{ $p->id }}" @selected(old('rendering_provider_employee_id', $auth->rendering_provider_employee_id) == $p->id)>
+                                <option value="{{ $p->id }}" data-npi="{{ $p->npi }}" @selected(old('rendering_provider_employee_id', $auth->rendering_provider_employee_id) == $p->id)>
                                     {{ $p->full_name }}
                                 </option>
                             @endforeach
@@ -479,10 +555,15 @@
                                class="field-input font-mono">
                     </div>
                     <div>
-                        <label class="field-label">Rendering NPI</label>
-                        <input type="text" name="rendering_npi" maxlength="20"
-                               value="{{ old('rendering_npi', $auth->rendering_npi) }}"
-                               class="field-input font-mono">
+                        <label class="field-label">Rendering NPI <span class="live-badge">CMS NPPES</span></label>
+                        <div class="flex gap-1.5">
+                            <input type="text" name="rendering_npi" id="rendering_npi_input" maxlength="20"
+                                   value="{{ old('rendering_npi', $auth->rendering_npi) }}"
+                                   class="field-input font-mono">
+                            <button type="button" class="lookup-btn" id="rendering_npi_btn" title="Verify against CMS NPPES registry and pull taxonomy">
+                                <i data-lucide="search-check" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
                     </div>
                     <div>
                         <label class="field-label">Taxonomy Code</label>
@@ -500,12 +581,13 @@
                     <span class="section-title">Diagnoses (ICD-10)</span>
                 </div>
                 <div class="grid-2">
-                    <div>
-                        <label class="field-label">Primary Code</label>
-                        <input type="text" name="primary_dx_code" maxlength="20"
+                    <div class="suggest-wrap">
+                        <label class="field-label">Primary Code <span class="live-badge">ICD-10 live</span></label>
+                        <input type="text" name="primary_dx_code" id="primary_dx_input" maxlength="20" autocomplete="off"
                                value="{{ old('primary_dx_code', $auth->primary_dx_code) }}"
-                               placeholder="e.g. F33.1"
+                               placeholder="Type code or condition…"
                                class="field-input font-mono">
+                        <div class="suggest-list" id="primary_dx_suggest"></div>
                     </div>
                     <div>
                         <label class="field-label">Primary Description</label>
@@ -513,11 +595,13 @@
                                value="{{ old('primary_dx_description', $auth->primary_dx_description) }}"
                                class="field-input">
                     </div>
-                    <div>
-                        <label class="field-label">Secondary Code</label>
-                        <input type="text" name="secondary_dx_code" maxlength="20"
+                    <div class="suggest-wrap">
+                        <label class="field-label">Secondary Code <span class="live-badge">ICD-10 live</span></label>
+                        <input type="text" name="secondary_dx_code" id="secondary_dx_input" maxlength="20" autocomplete="off"
                                value="{{ old('secondary_dx_code', $auth->secondary_dx_code) }}"
+                               placeholder="Type code or condition…"
                                class="field-input font-mono">
+                        <div class="suggest-list" id="secondary_dx_suggest"></div>
                     </div>
                     <div>
                         <label class="field-label">Secondary Description</label>
@@ -604,6 +688,135 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    const byName = (n) => document.querySelector(`[name="${n}"]`);
+    const flash  = (el) => { if (!el) return; el.classList.add('smart-filled'); setTimeout(() => el.classList.remove('smart-filled'), 1200); };
+    const fill   = (el, v) => { if (el && v) { el.value = v; flash(el); } };
+    const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+    /* ── Payer → autofill insurance data (DB attrs + Florida payer registry) ── */
+    let flRegistry = [];
+    fetch('{{ asset('data/florida_payers.json') }}').then(r => r.json()).then(d => flRegistry = d).catch(() => {});
+
+    document.getElementById('payer_select')?.addEventListener('change', function () {
+        const opt = this.options[this.selectedIndex];
+        if (!opt.value) return;
+        const name = opt.text.trim();
+        const reg  = flRegistry.find(p => p.name.toLowerCase() === name.toLowerCase())
+                  || flRegistry.find(p => p.name.toLowerCase().startsWith(name.toLowerCase().slice(0, 14)));
+        fill(byName('payer_external_id'), opt.dataset.edi || reg?.edi_payer_id);
+        fill(byName('plan_type'),         opt.dataset.type || reg?.type);
+        fill(byName('contact_name'),      name);
+        fill(byName('contact_phone'),     opt.dataset.phone || reg?.phone);
+        window.RM?.toast('success', 'Insurance data filled from Florida payer registry.');
+    });
+
+    /* ── Quick-pick chips: common FL behavioral-health codes ── */
+    const SERVICE_PRESETS = [
+        { code: 'H2017', desc: 'Psychosocial rehabilitation services, per 15 minutes', pos: '11' },
+        { code: 'H0035', desc: 'Mental health partial hospitalization, treatment, less than 24 hours', pos: '52' },
+        { code: 'H2019', desc: 'Therapeutic behavioral services, per 15 minutes', pos: '11' },
+        { code: 'T1017', desc: 'Targeted case management, each 15 minutes', pos: '12' },
+        { code: '90853', desc: 'Group psychotherapy (other than of a multiple-family group)', pos: '11' },
+        { code: '90834', desc: 'Psychotherapy, 45 minutes with patient', pos: '11' },
+        { code: 'H0031', desc: 'Mental health assessment, by non-physician', pos: '11' },
+    ];
+    const chipRow = document.getElementById('service_chips');
+    if (chipRow) {
+        SERVICE_PRESETS.forEach(svc => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'svc-chip';
+            chip.title = svc.desc;
+            chip.innerHTML = `${svc.code} <span>${svc.desc.split(',')[0]}</span>`;
+            chip.addEventListener('click', () => {
+                fill(document.getElementById('service_code_input'), svc.code);
+                fill(document.getElementById('service_description_input'), svc.desc);
+                fill(byName('place_of_service'), svc.pos);
+            });
+            chipRow.appendChild(chip);
+        });
+    }
+
+    /* ── Generic typeahead against NLM Clinical Tables (NIH) ── */
+    function attachTypeahead(input, listEl, buildUrl, onPick) {
+        if (!input || !listEl) return;
+        const close = () => { listEl.classList.remove('open'); listEl.innerHTML = ''; };
+        const search = debounce(async () => {
+            const q = input.value.trim();
+            if (q.length < 2) return close();
+            try {
+                const res  = await fetch(buildUrl(q));
+                const data = await res.json();
+                const rows = data[3] || [];
+                if (!rows.length) return close();
+                listEl.innerHTML = '';
+                rows.forEach(row => {
+                    const item = document.createElement('div');
+                    item.className = 'suggest-item';
+                    item.innerHTML = `<span class="s-code">${row[0]}</span><span class="s-desc">${row[1]}</span>`;
+                    item.addEventListener('mousedown', (e) => { e.preventDefault(); onPick(row); close(); });
+                    listEl.appendChild(item);
+                });
+                listEl.classList.add('open');
+            } catch (e) { close(); }
+        }, 300);
+        input.addEventListener('input', search);
+        input.addEventListener('blur', () => setTimeout(close, 150));
+    }
+
+    /* Service code — live HCPCS/CPT search */
+    attachTypeahead(
+        document.getElementById('service_code_input'),
+        document.getElementById('service_code_suggest'),
+        q => `https://clinicaltables.nlm.nih.gov/api/hcpcs/v3/search?terms=${encodeURIComponent(q)}&maxList=8&df=code,display`,
+        row => {
+            fill(document.getElementById('service_code_input'), row[0]);
+            fill(document.getElementById('service_description_input'), row[1]);
+        }
+    );
+
+    /* Diagnoses — live ICD-10-CM search */
+    [['primary_dx_input', 'primary_dx_suggest', 'primary_dx_description'],
+     ['secondary_dx_input', 'secondary_dx_suggest', 'secondary_dx_description']].forEach(([inputId, listId, descName]) => {
+        attachTypeahead(
+            document.getElementById(inputId),
+            document.getElementById(listId),
+            q => `https://clinicaltables.nlm.nih.gov/api/icd10cm/v3/search?sf=code,name&df=code,name&terms=${encodeURIComponent(q)}&maxList=8`,
+            row => {
+                fill(document.getElementById(inputId), row[0]);
+                fill(byName(descName), row[1]);
+            }
+        );
+    });
+
+    /* ── Rendering provider → NPI from employee record ── */
+    document.getElementById('rendering_provider_select')?.addEventListener('change', function () {
+        const npi = this.options[this.selectedIndex]?.dataset.npi;
+        if (npi) fill(document.getElementById('rendering_npi_input'), npi);
+    });
+
+    /* ── Verify NPI against CMS NPPES registry, pull primary taxonomy ── */
+    document.getElementById('rendering_npi_btn')?.addEventListener('click', async function () {
+        const input = document.getElementById('rendering_npi_input');
+        const npi = (input.value || '').replace(/\D/g, '');
+        if (npi.length !== 10) { window.RM?.toast('error', 'Enter a 10-digit NPI first.'); return; }
+        this.disabled = true;
+        try {
+            const res  = await fetch(`https://npiregistry.cms.hhs.gov/api/?version=2.1&number=${npi}`);
+            const data = await res.json();
+            if (!data.result_count) { window.RM?.toast('error', 'NPI not found in the CMS registry.'); return; }
+            const r    = data.results[0];
+            const who  = r.basic.organization_name || `${r.basic.first_name ?? ''} ${r.basic.last_name ?? ''}`.trim();
+            const tax  = (r.taxonomies || []).find(t => t.primary) || (r.taxonomies || [])[0];
+            if (tax) fill(byName('taxonomy_code'), tax.code);
+            window.RM?.toast('success', `NPI verified: ${who}${tax ? ' — ' + tax.desc : ''}`);
+        } catch (e) {
+            window.RM?.toast('error', 'NPPES registry unreachable.');
+        } finally {
+            this.disabled = false;
+        }
+    });
 });
 </script>
 @endpush
